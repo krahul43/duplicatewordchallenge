@@ -1,0 +1,175 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { router } from 'expo-router';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../../src/lib/firebase';
+import { Input } from '../../src/components/Input';
+import { Button } from '../../src/components/Button';
+import { colors, spacing, typography } from '../../src/theme/colors';
+
+export default function RegisterScreen() {
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleRegister() {
+    if (!displayName || !email || !password || !confirmPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      await updateProfile(user, {
+        displayName: displayName,
+      });
+
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 7);
+
+      await setDoc(doc(db, 'profiles', user.uid), {
+        displayName: displayName,
+        email: email,
+        subscriptionStatus: 'trialing',
+        trialStartsAt: new Date().toISOString(),
+        trialEndsAt: trialEndsAt.toISOString(),
+        gamesPlayed: 0,
+        gamesWon: 0,
+        totalScore: 0,
+        highestWordScore: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setError(err.message || 'Failed to create account');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Start your 7-day free trial</Text>
+        </View>
+
+        <View style={styles.form}>
+          <Input
+            label="Display Name"
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Enter your name"
+            autoCapitalize="words"
+          />
+
+          <Input
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Enter your email"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+          />
+
+          <Input
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Create a password"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+
+          <Input
+            label="Confirm Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Confirm your password"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <Button
+            title="Create Account"
+            onPress={handleRegister}
+            loading={loading}
+            style={styles.button}
+          />
+
+          <Button
+            title="Already have an account? Sign In"
+            onPress={() => router.back()}
+            variant="outline"
+          />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  header: {
+    marginBottom: spacing.xl,
+    alignItems: 'center',
+  },
+  title: {
+    ...typography.h1,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    ...typography.body,
+    color: colors.success,
+    fontWeight: '600',
+  },
+  form: {
+    width: '100%',
+  },
+  button: {
+    marginBottom: spacing.md,
+  },
+  error: {
+    ...typography.body,
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+});

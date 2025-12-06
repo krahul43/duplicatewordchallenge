@@ -1,0 +1,133 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isGamePlayer(gameData) {
+      return isAuthenticated() &&
+             (request.auth.uid == gameData.player1_id ||
+              request.auth.uid == gameData.player2_id);
+    }
+
+    function isValidGameCreation() {
+      return isAuthenticated() &&
+             request.resource.data.player1_id == request.auth.uid &&
+             request.resource.data.status == 'waiting' &&
+             request.resource.data.current_round == 0 &&
+             request.resource.data.player1_score == 0 &&
+             request.resource.data.player2_score == 0 &&
+             request.resource.data.round_duration_seconds == 120 &&
+             request.resource.data.board is list &&
+             request.resource.data.current_rack is list;
+    }
+
+    match /profiles/{userId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isOwner(userId) &&
+                      request.resource.data.keys().hasAll([
+                        'displayName',
+                        'subscriptionStatus',
+                        'gamesPlayed',
+                        'gamesWon',
+                        'totalScore',
+                        'highestWordScore',
+                        'createdAt',
+                        'updatedAt'
+                      ]);
+
+      allow update: if isOwner(userId) &&
+                      request.resource.data.keys().hasAll([
+                        'displayName',
+                        'subscriptionStatus',
+                        'gamesPlayed',
+                        'gamesWon',
+                        'totalScore',
+                        'highestWordScore',
+                        'createdAt',
+                        'updatedAt'
+                      ]);
+
+      allow delete: if isOwner(userId);
+    }
+
+    match /games/{gameId} {
+      allow read: if isAuthenticated() &&
+                    (resource.data.player1_id == request.auth.uid ||
+                     resource.data.player2_id == request.auth.uid ||
+                     (resource.data.status == 'waiting' &&
+                      resource.data.is_private == false));
+
+      allow create: if isValidGameCreation();
+
+      allow update: if isAuthenticated() &&
+                      (resource.data.player1_id == request.auth.uid ||
+                       resource.data.player2_id == request.auth.uid) &&
+                      (
+                        (request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['player2_id', 'status', 'timer_ends_at', 'current_round', 'updated_at']) &&
+                         resource.data.status == 'waiting' &&
+                         request.resource.data.player2_id == request.auth.uid) ||
+
+                        (request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['player1_score', 'player2_score', 'current_round',
+                                   'current_rack', 'timer_ends_at', 'updated_at']) &&
+                         resource.data.status == 'playing') ||
+
+                        (request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['status', 'winner_id', 'updated_at']) &&
+                         resource.data.status == 'playing' &&
+                         request.resource.data.status == 'finished')
+                      );
+
+      allow delete: if isAuthenticated() &&
+                      resource.data.player1_id == request.auth.uid &&
+                      resource.data.status == 'waiting' &&
+                      resource.data.player2_id == null;
+    }
+
+    match /rounds/{roundId} {
+      allow read: if isAuthenticated() &&
+                    exists(/databases/$(database)/documents/games/$(resource.data.game_id)) &&
+                    (get(/databases/$(database)/documents/games/$(resource.data.game_id)).data.player1_id == request.auth.uid ||
+                     get(/databases/$(database)/documents/games/$(resource.data.game_id)).data.player2_id == request.auth.uid);
+
+      allow create: if isAuthenticated() &&
+                      exists(/databases/$(database)/documents/games/$(request.resource.data.game_id)) &&
+                      (get(/databases/$(database)/documents/games/$(request.resource.data.game_id)).data.player1_id == request.auth.uid ||
+                       get(/databases/$(database)/documents/games/$(request.resource.data.game_id)).data.player2_id == request.auth.uid) &&
+                      request.resource.data.keys().hasAll(['id', 'game_id', 'round_number', 'rack', 'created_at']);
+
+      allow update: if isAuthenticated() &&
+                      exists(/databases/$(database)/documents/games/$(resource.data.game_id)) &&
+                      (get(/databases/$(database)/documents/games/$(resource.data.game_id)).data.player1_id == request.auth.uid ||
+                       get(/databases/$(database)/documents/games/$(resource.data.game_id)).data.player2_id == request.auth.uid) &&
+                      (
+                        (request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['player1_word', 'player1_points', 'player1_submitted_at']) &&
+                         get(/databases/$(database)/documents/games/$(resource.data.game_id)).data.player1_id == request.auth.uid) ||
+
+                        (request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['player2_word', 'player2_points', 'player2_submitted_at']) &&
+                         get(/databases/$(database)/documents/games/$(resource.data.game_id)).data.player2_id == request.auth.uid) ||
+
+                        (request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['player1_word', 'player1_points', 'player1_submitted_at',
+                                   'winner_id', 'winning_word', 'winning_points']) ||
+                         request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['player2_word', 'player2_points', 'player2_submitted_at',
+                                   'winner_id', 'winning_word', 'winning_points']))
+                      );
+
+      allow delete: if false;
+    }
+  }
+}

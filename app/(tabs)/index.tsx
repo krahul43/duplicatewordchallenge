@@ -1,98 +1,255 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
+import { useSelector } from 'react-redux';
+import { Users, User, Trophy } from 'lucide-react-native';
+import { RootState } from '../../src/store';
+import { gameService } from '../../src/services/gameService';
+import { Button } from '../../src/components/Button';
+import { colors, spacing, typography } from '../../src/theme/colors';
+import { Game } from '../../src/types/game';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const profile = useSelector((state: RootState) => state.auth.profile);
+  const subscription = useSelector((state: RootState) => state.subscription);
+  const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(false);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  useEffect(() => {
+    loadGames();
+  }, []);
+
+  async function loadGames() {
+    if (!profile) return;
+
+    try {
+      const playerGames = await gameService.getPlayerGames(profile.id);
+      setGames(playerGames);
+    } catch (error) {
+      console.error('Failed to load games:', error);
+    }
+  }
+
+  async function handleQuickPlay() {
+    if (!canPlay()) {
+      router.push('/subscription-required');
+      return;
+    }
+
+    if (!profile?.id) return;
+
+    setLoading(true);
+
+    try {
+      const waitingGame = await gameService.findWaitingGame(profile.id);
+
+      if (waitingGame) {
+        await gameService.joinGame(waitingGame.id, profile.id);
+        router.push(`/game/${waitingGame.id}`);
+      } else {
+        await createNewGame(false);
+      }
+    } catch (error) {
+      console.error('Failed to quick play:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createNewGame(isPrivate: boolean) {
+    if (!canPlay()) {
+      router.push('/subscription-required');
+      return;
+    }
+
+    if (!profile?.id) return;
+
+    setLoading(true);
+
+    try {
+      const gameId = await gameService.createGame(profile.id, isPrivate);
+      router.push(`/game/${gameId}`);
+    } catch (error) {
+      console.error('Failed to create game:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function canPlay(): boolean {
+    return subscription.status === 'trialing' || subscription.status === 'active';
+  }
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {subscription.status === 'trialing' && subscription.daysLeftInTrial > 0 && (
+        <View style={styles.trialBanner}>
+          <Text style={styles.trialText}>
+            {subscription.daysLeftInTrial} days left in your free trial
+          </Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
+            <Text style={styles.trialLink}>Subscribe Now</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <View style={styles.header}>
+        <Text style={styles.title}>Mirror Scrabble</Text>
+        <Text style={styles.subtitle}>
+          Welcome back, {profile?.display_name || 'Player'}
+        </Text>
+      </View>
+
+      <View style={styles.stats}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{profile?.games_won || 0}</Text>
+          <Text style={styles.statLabel}>Wins</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{profile?.games_played || 0}</Text>
+          <Text style={styles.statLabel}>Games</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{profile?.highest_word_score || 0}</Text>
+          <Text style={styles.statLabel}>Best Word</Text>
+        </View>
+      </View>
+
+      <View style={styles.actions}>
+        <Button
+          title="Quick Play"
+          onPress={handleQuickPlay}
+          loading={loading}
+          style={styles.actionButton}
+        />
+        <Button
+          title="Play with Friend"
+          onPress={() => createNewGame(true)}
+          variant="outline"
+          loading={loading}
+          style={styles.actionButton}
+        />
+      </View>
+
+      {games.length > 0 && (
+        <View style={styles.gamesSection}>
+          <Text style={styles.sectionTitle}>Recent Games</Text>
+          {games.map((game: any) => (
+            <TouchableOpacity
+              key={game.id}
+              style={styles.gameCard}
+              onPress={() => router.push(`/game/${game.id}`)}
+            >
+              <View style={styles.gameInfo}>
+                <Text style={styles.gameStatus}>{game.status}</Text>
+                <Text style={styles.gameScore}>
+                  {game.player1_score} - {game.player2_score}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    padding: spacing.lg,
+  },
+  trialBanner: {
+    backgroundColor: colors.success,
+    padding: spacing.md,
+    borderRadius: 12,
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: spacing.lg,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  trialText: {
+    ...typography.body,
+    color: colors.surface,
+    fontWeight: '600',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  trialLink: {
+    ...typography.body,
+    color: colors.surface,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  header: {
+    marginBottom: spacing.xl,
+    alignItems: 'center',
+  },
+  title: {
+    ...typography.h1,
+    color: colors.primary,
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    ...typography.body,
+    color: colors.muted,
+  },
+  stats: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  statValue: {
+    ...typography.h2,
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+  statLabel: {
+    ...typography.caption,
+    color: colors.muted,
+  },
+  actions: {
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  actionButton: {
+    width: '100%',
+  },
+  gamesSection: {
+    marginTop: spacing.lg,
+  },
+  sectionTitle: {
+    ...typography.h3,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  gameCard: {
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: 12,
+    marginBottom: spacing.sm,
+  },
+  gameInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  gameStatus: {
+    ...typography.body,
+    color: colors.text,
+    textTransform: 'capitalize',
+  },
+  gameScore: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '600',
   },
 });
