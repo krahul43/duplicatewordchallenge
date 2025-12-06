@@ -29,7 +29,13 @@ export default function Index() {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        dispatch(setUser(user));
+        dispatch(setUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          emailVerified: user.emailVerified,
+        }));
 
         const profileDoc = await getDoc(doc(db, 'profiles', user.uid));
 

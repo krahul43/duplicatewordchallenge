@@ -3,20 +3,19 @@ import {
   doc,
   getDoc,
   getDocs,
-  setDoc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
   limit,
   onSnapshot,
   or,
-  Timestamp,
+  orderBy,
+  query,
+  setDoc,
   Unsubscribe,
+  updateDoc,
+  where
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Game, Round, GameMove, Tile, BoardCell } from '../types/game';
-import { initializeBoard, generateRack } from '../utils/gameLogic';
+import { Game, Round, Tile } from '../types/game';
+import { flattenBoard, generateRack, initializeBoard, unflattenBoard } from '../utils/gameLogic';
 
 function calculateScore(tiles: Tile[]): number {
   return tiles.reduce((sum, tile) => sum + tile.points, 0);
@@ -29,23 +28,26 @@ export const gameService = {
     const rack = generateRack();
     const joinCode = isPrivate ? generateJoinCode() : null;
 
-    const gameData: Partial<Game> = {
+    const gameData: any = {
       id: gameRef.id,
       player1_id: playerId,
-      player2_id: undefined,
+      player2_id: null,
       status: 'waiting',
-      board: board,
+      board: flattenBoard(board),
       current_round: 0,
       current_rack: rack,
       round_duration_seconds: 120,
       player1_score: 0,
       player2_score: 0,
       is_private: isPrivate,
-      join_code: joinCode || undefined,
       dictionary: 'en',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+
+    if (joinCode) {
+      gameData.join_code = joinCode;
+    }
 
     await setDoc(gameRef, gameData);
     return gameRef.id;
@@ -81,7 +83,12 @@ export const gameService = {
     }
 
     const gameDoc = snapshot.docs[0];
-    const game = { id: gameDoc.id, ...gameDoc.data() } as Game;
+    const data = gameDoc.data();
+    const game = {
+      id: gameDoc.id,
+      ...data,
+      board: unflattenBoard(data.board),
+    } as Game;
 
     if (game.player1_id === playerId) {
       return null;
@@ -98,7 +105,12 @@ export const gameService = {
       return null;
     }
 
-    return { id: gameSnap.id, ...gameSnap.data() } as Game;
+    const data = gameSnap.data();
+    return {
+      id: gameSnap.id,
+      ...data,
+      board: unflattenBoard(data.board),
+    } as Game;
   },
 
   async getPlayerGames(playerId: string): Promise<Game[]> {
@@ -114,7 +126,14 @@ export const gameService = {
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game));
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        board: unflattenBoard(data.board),
+      } as Game;
+    });
   },
 
   subscribeToGame(gameId: string, callback: (game: Game) => void): Unsubscribe {
@@ -122,7 +141,12 @@ export const gameService = {
 
     return onSnapshot(gameRef, (snapshot) => {
       if (snapshot.exists()) {
-        const game = { id: snapshot.id, ...snapshot.data() } as Game;
+        const data = snapshot.data();
+        const game = {
+          id: snapshot.id,
+          ...data,
+          board: unflattenBoard(data.board),
+        } as Game;
         callback(game);
       }
     });
@@ -141,7 +165,12 @@ export const gameService = {
       throw new Error('Game not found');
     }
 
-    const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
+    const data = gameSnap.data();
+    const game = {
+      id: gameSnap.id,
+      ...data,
+      board: unflattenBoard(data.board),
+    } as Game;
     const isPlayer1 = game.player1_id === playerId;
     const points = calculateScore(tiles);
 

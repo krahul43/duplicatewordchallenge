@@ -2,10 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useSelector } from 'react-redux';
-import { Users, User, Trophy } from 'lucide-react-native';
+import { Users, User as UserIcon } from 'lucide-react-native';
 import { RootState } from '../../src/store';
 import { gameService } from '../../src/services/gameService';
-import { Button } from '../../src/components/Button';
 import { colors, spacing, typography } from '../../src/theme/colors';
 import { Game } from '../../src/types/game';
 
@@ -24,7 +23,7 @@ export default function HomeScreen() {
 
     try {
       const playerGames = await gameService.getPlayerGames(profile.id);
-      setGames(playerGames);
+      setGames(playerGames.filter(g => g.status === 'playing'));
     } catch (error) {
       console.error('Failed to load games:', error);
     }
@@ -81,76 +80,53 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {subscription.status === 'trialing' && subscription.daysLeftInTrial > 0 && (
-        <View style={styles.trialBanner}>
-          <Text style={styles.trialText}>
-            {subscription.daysLeftInTrial} days left in your free trial
-          </Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
-            <Text style={styles.trialLink}>Subscribe Now</Text>
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.content}>
+        {games.length > 0 && (
+          <TouchableOpacity
+            style={styles.gameInProgressBanner}
+            onPress={() => router.push(`/game/${games[0].id}`)}
+          >
+            <Text style={styles.bannerText}>You have a game in progress play</Text>
+          </TouchableOpacity>
+        )}
+
+        <View style={styles.logoContainer}>
+          <View style={styles.logoBox}>
+            <Text style={styles.logoText}>SCRABBLE</Text>
+            <Text style={styles.logoSubtext}>The Classic Crossword Game</Text>
+          </View>
+        </View>
+
+        <Text style={styles.description}>
+          Play your favorite game of Scrabble with friends and family or practice against the computer in real-time. Play Scrabble online for free now!
+        </Text>
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleQuickPlay}
+            disabled={loading}
+          >
+            <View style={[styles.iconWrapper, styles.pinkIcon]}>
+              <Users size={24} color={colors.surface} />
+            </View>
+            <Text style={styles.actionButtonText}>Find a Match</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => createNewGame(true)}
+            disabled={loading}
+          >
+            <View style={[styles.iconWrapper, styles.yellowIcon]}>
+              <UserIcon size={24} color={colors.surface} />
+            </View>
+            <Text style={styles.actionButtonText}>Play a Friend</Text>
           </TouchableOpacity>
         </View>
-      )}
-
-      <View style={styles.header}>
-        <Text style={styles.title}>Mirror Scrabble</Text>
-        <Text style={styles.subtitle}>
-          Welcome back, {profile?.display_name || 'Player'}
-        </Text>
-      </View>
-
-      <View style={styles.stats}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{profile?.games_won || 0}</Text>
-          <Text style={styles.statLabel}>Wins</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{profile?.games_played || 0}</Text>
-          <Text style={styles.statLabel}>Games</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{profile?.highest_word_score || 0}</Text>
-          <Text style={styles.statLabel}>Best Word</Text>
-        </View>
-      </View>
-
-      <View style={styles.actions}>
-        <Button
-          title="Quick Play"
-          onPress={handleQuickPlay}
-          loading={loading}
-          style={styles.actionButton}
-        />
-        <Button
-          title="Play with Friend"
-          onPress={() => createNewGame(true)}
-          variant="outline"
-          loading={loading}
-          style={styles.actionButton}
-        />
-      </View>
-
-      {games.length > 0 && (
-        <View style={styles.gamesSection}>
-          <Text style={styles.sectionTitle}>Recent Games</Text>
-          {games.map((game: any) => (
-            <TouchableOpacity
-              key={game.id}
-              style={styles.gameCard}
-              onPress={() => router.push(`/game/${game.id}`)}
-            >
-              <View style={styles.gameInfo}>
-                <Text style={styles.gameStatus}>{game.status}</Text>
-                <Text style={styles.gameScore}>
-                  {game.player1_score} - {game.player2_score}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -162,94 +138,87 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
   },
-  trialBanner: {
-    backgroundColor: colors.success,
+  gameInProgressBanner: {
+    backgroundColor: '#FBD59A',
     padding: spacing.md,
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  trialText: {
-    ...typography.body,
-    color: colors.surface,
-    fontWeight: '600',
-  },
-  trialLink: {
-    ...typography.body,
-    color: colors.surface,
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-  },
-  header: {
+    borderRadius: 8,
     marginBottom: spacing.xl,
     alignItems: 'center',
   },
-  title: {
-    ...typography.h1,
-    color: colors.primary,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
+  bannerText: {
     ...typography.body,
-    color: colors.muted,
+    color: colors.text,
+    fontWeight: '500',
   },
-  stats: {
-    flexDirection: 'row',
-    gap: spacing.md,
+  logoContainer: {
+    alignItems: 'center',
     marginBottom: spacing.xl,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: 12,
+  logoBox: {
+    backgroundColor: colors.scrabbleLogo,
+    paddingHorizontal: spacing.xl * 2,
+    paddingVertical: spacing.xl,
+    borderRadius: 8,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  statValue: {
-    ...typography.h2,
-    color: colors.primary,
-    marginBottom: spacing.xs,
+  logoText: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: colors.surface,
+    letterSpacing: 4,
   },
-  statLabel: {
-    ...typography.caption,
-    color: colors.muted,
+  logoSubtext: {
+    fontSize: 12,
+    color: colors.surface,
+    marginTop: spacing.xs,
+    fontWeight: '500',
+  },
+  description: {
+    ...typography.body,
+    color: colors.text,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
   },
   actions: {
     gap: spacing.md,
-    marginBottom: spacing.xl,
   },
   actionButton: {
-    width: '100%',
-  },
-  gamesSection: {
-    marginTop: spacing.lg,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  gameCard: {
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: 12,
-    marginBottom: spacing.sm,
-  },
-  gameInfo: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  gameStatus: {
+  iconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  pinkIcon: {
+    backgroundColor: colors.button.pink,
+  },
+  yellowIcon: {
+    backgroundColor: colors.button.yellow,
+  },
+  actionButtonText: {
     ...typography.body,
     color: colors.text,
-    textTransform: 'capitalize',
-  },
-  gameScore: {
-    ...typography.body,
-    color: colors.primary,
     fontWeight: '600',
+    flex: 1,
   },
 });

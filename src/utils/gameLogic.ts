@@ -1,4 +1,4 @@
-import { BoardCell, Tile, TileType, Placement } from '../types/game';
+import { BoardCell, Placement, Tile, TileType } from '../types/game';
 
 const LETTER_SCORES: Record<string, number> = {
   A: 1, B: 3, C: 3, D: 2, E: 1, F: 4, G: 2, H: 4, I: 1, J: 8,
@@ -194,4 +194,16 @@ export function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+export function flattenBoard(board: BoardCell[][]): any[] {
+  return board.flat();
+}
+
+export function unflattenBoard(flatBoard: any[]): BoardCell[][] {
+  const board: BoardCell[][] = [];
+  for (let i = 0; i < 15; i++) {
+    board[i] = flatBoard.slice(i * 15, (i + 1) * 15);
+  }
+  return board;
 }

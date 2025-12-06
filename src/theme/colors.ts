@@ -1,18 +1,21 @@
 export const colors = {
-  primary: '#3E7BC4',
-  secondary: '#E85D4D',
+  primary: '#E84D3D',
+  secondary: '#F5B041',
   accent: '#4DB5BC',
-  background: '#F5F5F5',
+  background: '#F0F0F0',
   surface: '#FFFFFF',
   text: '#2B2B2B',
-  muted: '#6B7280',
+  muted: '#808080',
   success: '#4DB5BC',
   error: '#E85D4D',
   warning: '#F6C445',
 
-  tile: '#E8B861',
+  tile: '#E8D4A0',
   tileText: '#2B2B2B',
-  tileBorder: '#D4A853',
+  tileBorder: '#B8A26B',
+
+  scrabbleLogo: '#E84D3D',
+  scrabbleLogoBg: '#F5F5F5',
 
   splash: {
     blue: '#3E7BC4',
@@ -20,22 +23,25 @@ export const colors = {
   },
 
   button: {
-    primary: '#4DB5BC',
+    primary: '#50C9C3',
     secondary: '#E85D4D',
-    outline: '#CCCCCC',
+    outline: '#E0E0E0',
     text: '#FFFFFF',
+    pink: '#E84393',
+    yellow: '#F6C445',
   },
 
   premium: {
     doubleLetter: '#A7D8F0',
-    tripleLetter: '#4DB5BC',
-    doubleWord: '#FFB3B3',
-    tripleWord: '#E85D4D',
+    tripleLetter: '#50C9C3',
+    doubleWord: '#FFB8C2',
+    tripleWord: '#E84D3D',
   },
 
   board: {
-    background: '#E8E8E8',
-    grid: '#D0D0D0',
+    background: '#E0E0E0',
+    grid: '#BDBDBD',
+    cell: '#D5D5D5',
   },
 
   dark: {

@@ -160,18 +160,36 @@ export default function GameScreen() {
   const myScore = currentGame.player1_id === profile?.id ? currentGame.player1_score : currentGame.player2_score;
   const opponentScore = currentGame.player1_id === profile?.id ? currentGame.player2_score : currentGame.player1_score;
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.scoreContainer}>
-          <View style={styles.scoreCard}>
-            <Text style={styles.scoreName}>You</Text>
-            <Text style={styles.scoreValue}>{myScore}</Text>
+        <View style={styles.playerInfo}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {profile?.display_name?.charAt(0).toUpperCase() || 'P'}
+            </Text>
           </View>
-          <GameTimer seconds={timeRemaining} totalSeconds={currentGame.round_duration_seconds} />
-          <View style={styles.scoreCard}>
-            <Text style={styles.scoreName}>{opponent}</Text>
-            <Text style={styles.scoreValue}>{opponentScore}</Text>
+          <View style={styles.scoreInfo}>
+            <Text style={styles.scoreLabel}>SC: {myScore}</Text>
+            <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.timerDot} />
+
+        <View style={styles.playerInfo}>
+          <View style={styles.scoreInfo}>
+            <Text style={styles.scoreLabel}>SC: {opponentScore}</Text>
+            <Text style={styles.timerText}>{formatTime(currentGame.round_duration_seconds - timeRemaining)}</Text>
+          </View>
+          <View style={[styles.avatar, styles.opponentAvatar]}>
+            <Text style={styles.avatarText}>O</Text>
           </View>
         </View>
       </View>
@@ -181,26 +199,24 @@ export default function GameScreen() {
           <GameBoard board={currentGame.board as any} />
         </View>
 
-        <WordBuilder
-          selectedTiles={selectedTiles}
-          onRemoveTile={handleRemoveTile}
-          onClear={handleClear}
-        />
-
         <TileRack tiles={myRack} onTilePress={handleTilePress} />
 
         <View style={styles.actions}>
           <TouchableOpacity onPress={handleShuffle} style={styles.iconButton}>
-            <Shuffle size={24} color={colors.primary} />
+            <Shuffle size={20} color={colors.text} />
           </TouchableOpacity>
 
-          <Button
-            title="Submit Word"
+          <TouchableOpacity
             onPress={handleSubmit}
             disabled={selectedTiles.length < 2 || loading}
-            loading={loading}
-            style={styles.submitButton}
-          />
+            style={[styles.submitButton, (selectedTiles.length < 2 || loading) && styles.submitButtonDisabled]}
+          >
+            <Text style={styles.submitButtonText}>Submit</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleClear} style={styles.iconButton}>
+            <Text style={styles.iconButtonText}>↺</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -233,32 +249,57 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: colors.surface,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.xl + 10,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  scoreContainer: {
+  playerInfo: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#333',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  scoreCard: {
-    alignItems: 'center',
+  opponentAvatar: {
+    backgroundColor: '#8B7355',
   },
-  scoreName: {
+  avatarText: {
+    color: colors.surface,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  scoreInfo: {
+    alignItems: 'flex-start',
+  },
+  scoreLabel: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  timerText: {
     ...typography.caption,
     color: colors.muted,
-    marginBottom: spacing.xs,
+    fontSize: 12,
   },
-  scoreValue: {
-    ...typography.h2,
-    color: colors.primary,
-    fontWeight: '700',
+  timerDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.warning,
   },
   content: {
     flex: 1,
@@ -273,23 +314,46 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    marginTop: spacing.lg,
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.xs,
   },
   iconButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 8,
     backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
+  },
+  iconButtonText: {
+    fontSize: 24,
+    color: colors.text,
   },
   submitButton: {
     flex: 1,
+    backgroundColor: colors.button.primary,
+    paddingVertical: spacing.md,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  submitButtonDisabled: {
+    backgroundColor: colors.muted,
+    opacity: 0.5,
+  },
+  submitButtonText: {
+    ...typography.button,
+    color: colors.surface,
+    fontWeight: '700',
   },
 });

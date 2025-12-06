@@ -1,8 +1,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Profile } from '../../types/game';
 
+interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  emailVerified: boolean;
+}
+
 interface AuthState {
-  user: any | null;
+  user: User | null;
   profile: Profile | null;
   loading: boolean;
   error: string | null;
@@ -19,7 +27,7 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setUser: (state, action: PayloadAction<any>) => {
+    setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
       state.loading = false;
     },
