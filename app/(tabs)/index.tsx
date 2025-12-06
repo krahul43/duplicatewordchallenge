@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import { User as UserIcon, Users } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSelector } from 'react-redux';
-import { Users, User as UserIcon } from 'lucide-react-native';
-import { RootState } from '../../src/store';
 import { gameService } from '../../src/services/gameService';
+import { RootState } from '../../src/store';
 import { colors, spacing, typography } from '../../src/theme/colors';
 import { Game } from '../../src/types/game';
 
@@ -91,12 +91,19 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
+
         <View style={styles.logoContainer}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoText}>SCRABBLE</Text>
-            <Text style={styles.logoSubtext}>The Classic Crossword Game</Text>
-          </View>
-        </View>
+  <View style={styles.zigzagLeft} />
+  
+  <View style={styles.logoBox}>
+    <Text style={styles.logoSubtext}>The Classic Crossword Game</Text>
+
+    <Text style={styles.logoText}>SCRABBLE</Text>
+  </View>
+
+  <View style={styles.zigzagRight} />
+</View>
+
 
         <Text style={styles.description}>
           Play your favorite game of Scrabble with friends and family or practice against the computer in real-time. Play Scrabble online for free now!
@@ -150,34 +157,68 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '500',
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  logoBox: {
-    backgroundColor: colors.scrabbleLogo,
-    paddingHorizontal: spacing.xl * 2,
-    paddingVertical: spacing.xl,
-    borderRadius: 8,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  logoText: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: colors.surface,
-    letterSpacing: 4,
-  },
-  logoSubtext: {
-    fontSize: 12,
-    color: colors.surface,
-    marginTop: spacing.xs,
-    fontWeight: '500',
-  },
+logoContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginBottom: spacing.xl,
+  marginTop: spacing.xl,
+},
+
+logoBox: {
+  backgroundColor: '#E64D3C',
+  paddingHorizontal: spacing.xl * 1.5,
+  paddingVertical: spacing.lg,
+  borderRadius: 12,
+  alignItems: 'center',
+
+  // SHADOW
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.15,
+  shadowRadius: 10,
+  elevation: 8,
+
+  overflow: 'visible',
+},
+
+logoText: {
+  fontSize: 44,
+  fontWeight: '900',
+  color: '#FFFFFF',
+  textAlign: 'center',
+  lineHeight: 44,
+  letterSpacing: 3,
+},
+
+logoSubtext: {
+  fontSize: 14,
+  color: '#FFFFFF',
+  marginTop: spacing.sm,
+  fontWeight: '500',
+},
+zigzagLeft: {
+  width: 12,
+  height: '100%',
+  backgroundColor: 'transparent',
+  borderRightWidth: 10,
+  borderRightColor: '#FFFFFF',
+  borderStyle: 'dashed',
+  opacity: 0.7,
+  marginRight: -6,
+},
+
+zigzagRight: {
+  width: 12,
+  height: '100%',
+  backgroundColor: 'transparent',
+  borderLeftWidth: 10,
+  borderLeftColor: '#FFFFFF',
+  borderStyle: 'dashed',
+  opacity: 0.7,
+  marginLeft: -6,
+},
+
   description: {
     ...typography.body,
     color: colors.text,

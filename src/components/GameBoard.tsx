@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
 import { BoardCell as BoardCellType } from '../types/game';
 import { colors } from '../theme/colors';
 
@@ -8,7 +8,11 @@ interface Props {
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const CELL_SIZE = Math.floor((SCREEN_WIDTH - 32) / 15);
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const AVAILABLE_HEIGHT = Platform.OS === 'web' ? SCREEN_HEIGHT - 450 : SCREEN_HEIGHT - 500;
+const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
+const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
+const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
 export function GameBoard({ board }: Props) {
   return (
@@ -45,22 +49,22 @@ function BoardCell({ cell }: { cell: BoardCellType }) {
 
 function getCellBackgroundStyle(cell: BoardCellType) {
   if (cell.locked) {
-    return { backgroundColor: colors.tile };
+    return { backgroundColor: '#90EE90' };
   }
 
   switch (cell.type) {
     case 'DL':
-      return { backgroundColor: colors.premium.doubleLetter };
+      return { backgroundColor: '#87CEEB' };
     case 'TL':
-      return { backgroundColor: colors.premium.tripleLetter };
+      return { backgroundColor: '#008B8B' };
     case 'DW':
-      return { backgroundColor: colors.premium.doubleWord };
+      return { backgroundColor: '#FFB6C1' };
     case 'TW':
-      return { backgroundColor: colors.premium.tripleWord };
+      return { backgroundColor: '#FF1493' };
     case 'CENTER':
-      return { backgroundColor: colors.premium.doubleWord };
+      return { backgroundColor: '#FFB6C1' };
     default:
-      return { backgroundColor: colors.surface };
+      return { backgroundColor: '#E8E8E8' };
   }
 }
 
@@ -77,9 +81,14 @@ function getCellLabel(type: string): string {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.background,
+    backgroundColor: '#fff',
     padding: 2,
-    borderRadius: 8,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 5,
   },
   row: {
     flexDirection: 'row',
@@ -90,16 +99,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 0.5,
-    borderColor: colors.muted + '40',
+    borderColor: '#ccc',
   },
   letter: {
-    fontSize: CELL_SIZE * 0.5,
+    fontSize: Math.max(12, CELL_SIZE * 0.5),
     fontWeight: '700',
-    color: colors.tileText,
+    color: '#2C5F2D',
   },
   label: {
-    fontSize: CELL_SIZE * 0.2,
-    fontWeight: '600',
-    color: colors.text + '80',
+    fontSize: Math.max(7, CELL_SIZE * 0.25),
+    fontWeight: '700',
+    color: '#fff',
   },
 });

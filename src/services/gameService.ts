@@ -3,19 +3,20 @@ import {
   doc,
   getDoc,
   getDocs,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  orderBy,
   limit,
   onSnapshot,
   or,
-  orderBy,
-  query,
-  setDoc,
+  Timestamp,
   Unsubscribe,
-  updateDoc,
-  where
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Game, Round, Tile } from '../types/game';
-import { flattenBoard, generateRack, initializeBoard, unflattenBoard } from '../utils/gameLogic';
+import { Game, Round, GameMove, Tile, BoardCell } from '../types/game';
+import { initializeBoard, generateRack, flattenBoard, unflattenBoard } from '../utils/gameLogic';
 
 function calculateScore(tiles: Tile[]): number {
   return tiles.reduce((sum, tile) => sum + tile.points, 0);
