@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { useDispatch } from 'react-redux';
+import { LinearGradient } from 'expo-linear-gradient';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../src/lib/firebase';
@@ -9,10 +10,23 @@ import { setUser, setProfile } from '../src/store/slices/authSlice';
 import { setSubscriptionData } from '../src/store/slices/subscriptionSlice';
 import { colors } from '../src/theme/colors';
 
+const { width } = Dimensions.get('window');
+
 export default function Index() {
   const dispatch = useDispatch();
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
+    const splashTimer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2000);
+
+    return () => clearTimeout(splashTimer);
+  }, []);
+
+  useEffect(() => {
+    if (showSplash) return;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         dispatch(setUser(user));
@@ -52,11 +66,78 @@ export default function Index() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [showSplash]);
+
+  if (!showSplash) {
+    return (
+      <View style={styles.loadingContainer}>
+        <View style={styles.logo}>
+          <View style={styles.letterBox}>
+            <Text style={styles.letter}>W</Text>
+          </View>
+          <View style={styles.letterBox}>
+            <Text style={styles.letter}>O</Text>
+          </View>
+          <View style={styles.letterBox}>
+            <Text style={styles.letter}>R</Text>
+          </View>
+          <View style={styles.letterBox}>
+            <Text style={styles.letter}>D</Text>
+          </View>
+          <View style={styles.letterBox}>
+            <Text style={styles.letter}>S</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color={colors.primary} />
+      <LinearGradient
+        colors={[colors.splash.blue, colors.splash.darkBlue]}
+        style={styles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        {Array.from({ length: 30 }).map((_, index) => (
+          <View
+            key={index}
+            style={[
+              styles.stripe,
+              {
+                top: -width + (index * width) / 6,
+                left: -width / 2,
+              },
+            ]}
+          />
+        ))}
+
+        <View style={styles.logoContainer}>
+          <View style={styles.logo}>
+            <View style={styles.letterBox}>
+              <Text style={styles.letter}>W</Text>
+            </View>
+            <View style={styles.letterBox}>
+              <Text style={styles.letter}>O</Text>
+            </View>
+            <View style={styles.letterBox}>
+              <Text style={styles.letter}>R</Text>
+            </View>
+            <View style={styles.letterBox}>
+              <Text style={styles.letter}>D</Text>
+            </View>
+            <View style={styles.letterBox}>
+              <Text style={styles.letter}>S</Text>
+            </View>
+          </View>
+          <View style={styles.subtitle}>
+            <Text style={styles.withText}>with</Text>
+            <Text style={styles.friendsText}>friends</Text>
+            <Text style={styles.classicText}>CLASSIC</Text>
+          </View>
+        </View>
+      </LinearGradient>
     </View>
   );
 }
@@ -64,8 +145,73 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  gradient: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    overflow: 'hidden',
+  },
+  stripe: {
+    position: 'absolute',
+    width: width * 2,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    transform: [{ rotate: '45deg' }],
+  },
+  logoContainer: {
+    alignItems: 'center',
+  },
+  logo: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  letterBox: {
+    width: 42,
+    height: 42,
+    backgroundColor: colors.tile,
+    marginHorizontal: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 4,
+    borderBottomWidth: 3,
+    borderBottomColor: colors.tileBorder,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  letter: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.tileText,
+  },
+  subtitle: {
+    alignItems: 'center',
+  },
+  withText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '400',
+  },
+  friendsText: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    marginTop: -2,
+  },
+  classicText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    letterSpacing: 2,
+    marginTop: 2,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
   },
 });

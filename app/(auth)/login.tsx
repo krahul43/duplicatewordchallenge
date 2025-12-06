@@ -23,7 +23,7 @@ export default function LoginScreen() {
     setError('');
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
       router.replace('/(tabs)');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
@@ -33,60 +33,82 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to continue playing</Text>
-        </View>
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.inner}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <View style={styles.logo}>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>W</Text>
+              </View>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>O</Text>
+              </View>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>R</Text>
+              </View>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>D</Text>
+              </View>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>S</Text>
+              </View>
+            </View>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Sign in to continue playing</Text>
+          </View>
 
-        <View style={styles.form}>
-          <Input
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Enter your email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-          />
+          <View style={styles.form}>
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Enter your email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
 
-          <Input
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Enter your password"
-            secureTextEntry
-            autoCapitalize="none"
-          />
+            <Input
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              secureTextEntry
+              autoCapitalize="none"
+            />
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <Button
-            title="Sign In"
-            onPress={handleLogin}
-            loading={loading}
-            style={styles.button}
-          />
+            <Button
+              title="Sign In"
+              onPress={handleLogin}
+              loading={loading}
+              style={styles.button}
+            />
 
-          <Button
-            title="Create Account"
-            onPress={() => router.push('/(auth)/register')}
-            variant="outline"
-          />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Button
+              title="Create Account"
+              onPress={() => router.push('/(auth)/register')}
+              variant="outline"
+            />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
+  },
+  inner: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
@@ -96,6 +118,31 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: spacing.xl,
     alignItems: 'center',
+  },
+  logo: {
+    flexDirection: 'row',
+    marginBottom: spacing.lg,
+  },
+  letterBox: {
+    width: 38,
+    height: 38,
+    backgroundColor: colors.tile,
+    marginHorizontal: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 4,
+    borderBottomWidth: 3,
+    borderBottomColor: colors.tileBorder,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  letter: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.tileText,
   },
   title: {
     ...typography.h1,

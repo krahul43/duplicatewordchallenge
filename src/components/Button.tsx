@@ -37,7 +37,7 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
       activeOpacity={0.8}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? colors.primary : colors.surface} />
+        <ActivityIndicator color={variant === 'outline' ? colors.text : colors.surface} />
       ) : (
         <Text style={textStyle}>{title}</Text>
       )}
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   primaryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
   },
   secondaryButton: {
     backgroundColor: colors.secondary,
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   outlineButton: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: colors.muted,
   },
   disabledButton: {
     backgroundColor: colors.muted,
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
   outlineText: {
-    color: colors.primary,
+    color: colors.text,
   },
   disabledText: {
     color: colors.surface,

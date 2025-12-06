@@ -36,7 +36,7 @@ export default function RegisterScreen() {
     setError('');
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
 
       await updateProfile(user, {
@@ -48,7 +48,7 @@ export default function RegisterScreen() {
 
       await setDoc(doc(db, 'profiles', user.uid), {
         displayName: displayName,
-        email: email,
+        email: email.trim(),
         subscriptionStatus: 'trialing',
         trialStartsAt: new Date().toISOString(),
         trialEndsAt: trialEndsAt.toISOString(),
@@ -69,77 +69,99 @@ export default function RegisterScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Start your 7-day free trial</Text>
-        </View>
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.inner}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <View style={styles.logo}>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>W</Text>
+              </View>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>O</Text>
+              </View>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>R</Text>
+              </View>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>D</Text>
+              </View>
+              <View style={styles.letterBox}>
+                <Text style={styles.letter}>S</Text>
+              </View>
+            </View>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Start your 7-day free trial</Text>
+          </View>
 
-        <View style={styles.form}>
-          <Input
-            label="Display Name"
-            value={displayName}
-            onChangeText={setDisplayName}
-            placeholder="Enter your name"
-            autoCapitalize="words"
-          />
+          <View style={styles.form}>
+            <Input
+              label="Display Name"
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Enter your name"
+              autoCapitalize="words"
+            />
 
-          <Input
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Enter your email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-          />
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Enter your email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
 
-          <Input
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Create a password"
-            secureTextEntry
-            autoCapitalize="none"
-          />
+            <Input
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Create a password"
+              secureTextEntry
+              autoCapitalize="none"
+            />
 
-          <Input
-            label="Confirm Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            placeholder="Confirm your password"
-            secureTextEntry
-            autoCapitalize="none"
-          />
+            <Input
+              label="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Confirm your password"
+              secureTextEntry
+              autoCapitalize="none"
+            />
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <Button
-            title="Create Account"
-            onPress={handleRegister}
-            loading={loading}
-            style={styles.button}
-          />
+            <Button
+              title="Create Account"
+              onPress={handleRegister}
+              loading={loading}
+              style={styles.button}
+            />
 
-          <Button
-            title="Already have an account? Sign In"
-            onPress={() => router.back()}
-            variant="outline"
-          />
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Button
+              title="Already have an account? Sign In"
+              onPress={() => router.back()}
+              variant="outline"
+            />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
+  },
+  inner: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
@@ -149,6 +171,31 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: spacing.xl,
     alignItems: 'center',
+  },
+  logo: {
+    flexDirection: 'row',
+    marginBottom: spacing.lg,
+  },
+  letterBox: {
+    width: 38,
+    height: 38,
+    backgroundColor: colors.tile,
+    marginHorizontal: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 4,
+    borderBottomWidth: 3,
+    borderBottomColor: colors.tileBorder,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  letter: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.tileText,
   },
   title: {
     ...typography.h1,
