@@ -82,6 +82,35 @@ function getBoardCellType(row: number, col: number): TileType {
   return 'NORMAL';
 }
 
+export function generateTileBag(): Tile[] {
+  const bag: Tile[] = [];
+
+  for (const [letter, count] of Object.entries(LETTER_DISTRIBUTION)) {
+    for (let i = 0; i < count; i++) {
+      bag.push({
+        letter,
+        points: LETTER_SCORES[letter],
+      });
+    }
+  }
+
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+
+  return bag;
+}
+
+export function drawTiles(bag: Tile[], count: number): { tiles: Tile[]; remainingBag: Tile[] } {
+  if (!bag || !Array.isArray(bag)) {
+    return { tiles: [], remainingBag: [] };
+  }
+  const drawn = bag.slice(0, count);
+  const remaining = bag.slice(count);
+  return { tiles: drawn, remainingBag: remaining };
+}
+
 export function generateRack(): Tile[] {
   const letters = Object.keys(LETTER_DISTRIBUTION);
   const rack: Tile[] = [];
@@ -188,6 +217,49 @@ export function placeWordOnBoard(
 
 export function isValidWord(word: string): boolean {
   return word.length >= 2 && /^[A-Z]+$/.test(word);
+}
+
+export function isBoardEmpty(board: BoardCell[][]): boolean {
+  for (let row = 0; row < 15; row++) {
+    for (let col = 0; col < 15; col++) {
+      if (board[row][col].locked) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+export function wordCoversCenter(placements: { row: number; col: number }[]): boolean {
+  return placements.some(p => p.row === 7 && p.col === 7);
+}
+
+export function wordConnectsToBoard(
+  placements: { row: number; col: number }[],
+  board: BoardCell[][]
+): boolean {
+  for (const { row, col } of placements) {
+    const adjacent = [
+      [row - 1, col],
+      [row + 1, col],
+      [row, col - 1],
+      [row, col + 1],
+    ];
+
+    for (const [adjRow, adjCol] of adjacent) {
+      if (
+        adjRow >= 0 &&
+        adjRow < 15 &&
+        adjCol >= 0 &&
+        adjCol < 15 &&
+        board[adjRow][adjCol].locked
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 export function formatTime(seconds: number): string {

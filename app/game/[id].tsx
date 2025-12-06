@@ -1,17 +1,18 @@
+import { router, useLocalSearchParams } from 'expo-router';
+import { BookOpen, ChevronLeft, Droplets, Flag, Menu, Pause, Play, Shuffle, X, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useSelector, useDispatch } from 'react-redux';
-import { Shuffle, X, Menu, Zap, BookOpen, Droplets, ChevronLeft, Diamond } from 'lucide-react-native';
-import { RootState } from '../../src/store';
-import { setCurrentGame, setMyRack, setSelectedTiles, addSelectedTile, shuffleRack, clearSelectedTiles } from '../../src/store/slices/gameSlice';
-import { gameService } from '../../src/services/gameService';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import { GameBoard } from '../../src/components/GameBoard';
+import { GameSummaryModal } from '../../src/components/GameSummaryModal';
 import { TileRack } from '../../src/components/TileRack';
-import { RoundResultModal } from '../../src/components/RoundResultModal';
-import { colors, spacing, typography } from '../../src/theme/colors';
-import { Game, Tile } from '../../src/types/game';
-import { isValidWord } from '../../src/utils/gameLogic';
+import { gameService } from '../../src/services/gameService';
+import { RootState } from '../../src/store';
+import { addSelectedTile, clearSelectedTiles, setCurrentGame, setMyRack, setSelectedTiles, shuffleRack } from '../../src/store/slices/gameSlice';
+import { colors, spacing } from '../../src/theme/colors';
+import { Game, GameSummary, Tile } from '../../src/types/game';
+import { validateWordWithDictionary } from '../../src/utils/dictionaryApi';
+import { isBoardEmpty, isValidWord, wordConnectsToBoard, wordCoversCenter } from '../../src/utils/gameLogic';
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
@@ -20,8 +21,12 @@ export default function GameScreen() {
   const { currentGame, myRack, selectedTiles } = useSelector((state: RootState) => state.game);
   const [timeRemaining, setTimeRemaining] = useState(120);
   const [loading, setLoading] = useState(false);
-  const [showResult, setShowResult] = useState(false);
-  const [roundResult, setRoundResult] = useState<any>(null);
+  const [showSummary, setShowSummary] = useState(false);
+  const [gameSummary, setGameSummary] = useState<GameSummary | null>(null);
+  const [placedTiles, setPlacedTiles] = useState<{ row: number; col: number; letter: string; points: number }[]>([]);
+  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [validatingWord, setValidatingWord] = useState(false);
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return;
@@ -34,6 +39,14 @@ export default function GameScreen() {
       if (game.status === 'waiting' && game.player2_id) {
         startGame(game);
       }
+
+      if (game.status === 'finished' && !showSummary) {
+        loadGameSummary();
+      }
+
+      if (game.pause_status === 'requested' && game.pause_requested_by !== profile?.id) {
+        showPauseRequest();
+      }
     });
 
     return () => {
@@ -41,11 +54,50 @@ export default function GameScreen() {
     };
   }, [id]);
 
-  useEffect(() => {
-    if (currentGame?.current_rack) {
-      dispatch(setMyRack(currentGame.current_rack as Tile[]));
+  async function loadGameSummary() {
+    if (!id || typeof id !== 'string') return;
+
+    try {
+      const summary = await gameService.getGameSummary(id);
+      if (summary) {
+        setGameSummary(summary);
+        setShowSummary(true);
+      }
+    } catch (error) {
+      console.error('Failed to load game summary:', error);
     }
-  }, [currentGame?.current_rack]);
+  }
+
+  function showPauseRequest() {
+    if (!currentGame) return;
+
+    Alert.alert(
+      'Pause Request',
+      'Your opponent wants to pause the game. Do you accept?',
+      [
+        {
+          text: 'Decline',
+          style: 'cancel',
+          onPress: () => handleRejectPause(),
+        },
+        {
+          text: 'Accept',
+          onPress: () => handleAcceptPause(),
+        },
+      ]
+    );
+  }
+
+  useEffect(() => {
+    if (!currentGame || !profile?.id) return;
+
+    const isPlayer1 = currentGame.player1_id === profile.id;
+    const rack = isPlayer1 ? currentGame.player1_rack : currentGame.player2_rack;
+
+    if (rack && rack.length > 0) {
+      dispatch(setMyRack(rack as Tile[]));
+    }
+  }, [currentGame?.player1_rack, currentGame?.player2_rack, profile?.id]);
 
   useEffect(() => {
     if (!currentGame?.timer_ends_at) return;
@@ -86,49 +138,206 @@ export default function GameScreen() {
   }
 
   function handleTilePress(tile: Tile, index: number) {
+    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
     dispatch(addSelectedTile(tile));
   }
 
   function handleRemoveTile(index: number) {
+    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
     const newSelected = [...selectedTiles];
     newSelected.splice(index, 1);
     dispatch(setSelectedTiles(newSelected));
   }
 
   function handleShuffle() {
+    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
     dispatch(shuffleRack());
   }
 
   function handleClear() {
+    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
     dispatch(clearSelectedTiles());
+    setPlacedTiles([]);
+    setSelectedCell(null);
   }
 
-  async function handleSubmit() {
-    const word = selectedTiles.map(t => t.letter).join('');
-
-    if (!isValidWord(word)) {
-      Alert.alert('Invalid Word', 'Please create a valid word (at least 2 letters)');
+  function handleBoardCellPress(row: number, col: number) {
+    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
+    if (selectedTiles.length === 0) {
+      const existingTile = placedTiles.find(t => t.row === row && t.col === col);
+      if (existingTile) {
+        setPlacedTiles(placedTiles.filter(t => t.row !== row || t.col !== col));
+        dispatch(addSelectedTile({ letter: existingTile.letter, points: existingTile.points }));
+      }
       return;
     }
 
-    if (!id || typeof id !== 'string' || !profile?.id) return;
+    const existingTile = placedTiles.find(t => t.row === row && t.col === col);
+    if (existingTile) {
+      Alert.alert('Cell Occupied', 'This cell already has a tile placed. Remove it first.');
+      return;
+    }
+
+    const nextTile = selectedTiles[0];
+    setPlacedTiles([...placedTiles, { row, col, letter: nextTile.letter, points: nextTile.points }]);
+
+    const newSelected = selectedTiles.slice(1);
+    dispatch(setSelectedTiles(newSelected));
+
+    if (newSelected.length > 0) {
+      setSelectedCell({ row, col });
+    } else {
+      setSelectedCell(null);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!currentGame || !profile?.id) return;
+
+    if (currentGame.current_player_id !== profile.id) {
+      Alert.alert('Not Your Turn', 'Please wait for your opponent to play');
+      return;
+    }
+
+    if (placedTiles.length < 2) {
+      Alert.alert('Invalid Move', 'You must place at least 2 tiles on the board');
+      return;
+    }
+
+    placedTiles.sort((a, b) => {
+      if (a.row === b.row) return a.col - b.col;
+      return a.row - b.row;
+    });
+
+    const isHorizontal = placedTiles.every(t => t.row === placedTiles[0].row);
+    const isVertical = placedTiles.every(t => t.col === placedTiles[0].col);
+
+    if (!isHorizontal && !isVertical) {
+      Alert.alert('Invalid Placement', 'All tiles must be placed in a single row or column');
+      return;
+    }
+
+    const boardIsEmpty = isBoardEmpty(currentGame.board);
+
+    if (boardIsEmpty) {
+      if (!wordCoversCenter(placedTiles)) {
+        Alert.alert('Invalid First Move', 'First word must cover the center square (★)');
+        return;
+      }
+    } else {
+      if (!wordConnectsToBoard(placedTiles, currentGame.board)) {
+        Alert.alert('Invalid Placement', 'Word must connect to existing tiles on the board');
+        return;
+      }
+    }
+
+    const word = placedTiles.map(t => t.letter).join('');
+
+    if (!isValidWord(word)) {
+      Alert.alert('Invalid Word', `"${word}" is not a valid word`);
+      return;
+    }
+
+    if (!id || typeof id !== 'string') return;
 
     setLoading(true);
+    setValidatingWord(true);
 
     try {
-      const result = await gameService.submitWord(id, profile.id, word, selectedTiles);
+      const isValidDictionaryWord = await validateWordWithDictionary(word);
 
-      if (result.roundComplete && result.result) {
-        setRoundResult(result.result);
-        setShowResult(true);
+      if (!isValidDictionaryWord) {
+        setValidatingWord(false);
+        Alert.alert('Invalid Word', `"${word}" is not found in the dictionary`);
+        setLoading(false);
+        return;
       }
 
+      setValidatingWord(false);
+
+      const tiles = placedTiles.map(t => ({ letter: t.letter, points: t.points }));
+      const result = await gameService.submitWord(id, profile.id, word, tiles, placedTiles);
+
+      Alert.alert('Success!', `You scored ${result.score} points for "${word}"!`);
+
       dispatch(clearSelectedTiles());
-    } catch (error) {
-      Alert.alert('Error', 'Failed to submit word');
+      setPlacedTiles([]);
+      setSelectedCell(null);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to submit word');
     } finally {
       setLoading(false);
+      setValidatingWord(false);
     }
+  }
+
+  async function handleRequestPause() {
+    if (!id || typeof id !== 'string' || !profile?.id) return;
+
+    try {
+      await gameService.requestPause(id, profile.id);
+      Alert.alert('Pause Requested', 'Waiting for opponent to accept...');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to request pause');
+    }
+  }
+
+  async function handleAcceptPause() {
+    if (!id || typeof id !== 'string') return;
+
+    try {
+      await gameService.acceptPause(id);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to accept pause');
+    }
+  }
+
+  async function handleRejectPause() {
+    if (!id || typeof id !== 'string') return;
+
+    try {
+      await gameService.rejectPause(id);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to reject pause');
+    }
+  }
+
+  async function handleResume() {
+    if (!id || typeof id !== 'string' || !currentGame?.current_player_id) return;
+
+    try {
+      await gameService.resumeGame(id, currentGame.current_player_id);
+      setShowPauseModal(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to resume game');
+    }
+  }
+
+  async function handleResign() {
+    if (!id || typeof id !== 'string' || !profile?.id) return;
+
+    Alert.alert(
+      'Resign Game',
+      'Are you sure you want to resign? You will lose this game.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Resign',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await gameService.resignGame(id, profile.id);
+              Alert.alert('Game Over', 'You have resigned from the game');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to resign');
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function handleTimeUp() {
@@ -152,11 +361,47 @@ export default function GameScreen() {
     );
   }
 
-  const isMyTurn = currentGame.status === 'playing';
+  const isMyTurn = currentGame.current_player_id === profile?.id;
   const opponent = currentGame.player1_id === profile?.id ? 'Player 2' : 'Player 1';
   const myScore = currentGame.player1_id === profile?.id ? currentGame.player1_score : currentGame.player2_score;
   const opponentScore = currentGame.player1_id === profile?.id ? currentGame.player2_score : currentGame.player1_score;
-  const totalScore = selectedTiles.reduce((sum, t) => sum + t.points, 0);
+  const isPlayer1 = currentGame.player1_id === profile?.id;
+
+  const calculatePlacedScore = () => {
+    if (placedTiles.length === 0) return 0;
+
+    let baseScore = 0;
+    let wordMultiplier = 1;
+
+    placedTiles.forEach(tile => {
+      const cell = currentGame.board[tile.row][tile.col];
+      let tileScore = tile.points;
+
+      if (!cell.locked) {
+        switch (cell.type) {
+          case 'DL':
+            tileScore *= 2;
+            break;
+          case 'TL':
+            tileScore *= 3;
+            break;
+          case 'DW':
+          case 'CENTER':
+            wordMultiplier *= 2;
+            break;
+          case 'TW':
+            wordMultiplier *= 3;
+            break;
+        }
+      }
+
+      baseScore += tileScore;
+    });
+
+    return baseScore * wordMultiplier;
+  };
+
+  const totalScore = calculatePlacedScore();
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -175,13 +420,23 @@ export default function GameScreen() {
           <Text style={styles.flagText}>🇬🇧</Text>
         </View>
 
-        <View style={styles.turnIndicator}>
-          <Text style={styles.turnText}>Your Turn</Text>
+        <View style={[styles.turnIndicator, !isMyTurn && styles.turnIndicatorOpponent]}>
+          <Text style={styles.turnText}>{isMyTurn ? 'Your Turn' : 'Opponent\'s Turn'}</Text>
         </View>
 
-        <View style={styles.gemsContainer}>
-          <Diamond size={20} color="#4FC3F7" />
-          <Text style={styles.gemsText}>50</Text>
+        <View style={styles.topRightButtons}>
+          {currentGame.status === 'paused' ? (
+            <TouchableOpacity onPress={handleResume} style={styles.pauseButton}>
+              <Play size={20} color="#fff" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleRequestPause} style={styles.pauseButton}>
+              <Pause size={20} color="#fff" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={handleResign} style={styles.resignButton}>
+            <Flag size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -238,26 +493,38 @@ export default function GameScreen() {
       </View>
 
       <View style={styles.boardWrapper}>
-        <GameBoard board={currentGame.board as any} />
+        <GameBoard
+          board={currentGame.board as any}
+          onCellPress={handleBoardCellPress}
+          placedTiles={placedTiles}
+          selectedCell={selectedCell}
+        />
       </View>
 
       <View style={styles.bottomSection}>
         <View style={styles.wordBuildingArea}>
           <View style={styles.selectedTilesContainer}>
-            {selectedTiles.length === 0 ? (
-              <Text style={styles.wordPlaceholder}>Tap tiles to build your word</Text>
+            {selectedTiles.length === 0 && placedTiles.length === 0 ? (
+              <Text style={styles.wordPlaceholder}>Tap tiles, then tap board to place</Text>
+            ) : selectedTiles.length > 0 ? (
+              <>
+                <Text style={styles.instructionText}>Place tiles on board →</Text>
+                {selectedTiles.map((tile, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => handleRemoveTile(index)}
+                    style={styles.selectedTile}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.selectedTileLetter}>{tile.letter}</Text>
+                    <Text style={styles.selectedTilePoints}>{tile.points}</Text>
+                  </TouchableOpacity>
+                ))}
+              </>
             ) : (
-              selectedTiles.map((tile, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => handleRemoveTile(index)}
-                  style={styles.selectedTile}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.selectedTileLetter}>{tile.letter}</Text>
-                  <Text style={styles.selectedTilePoints}>{tile.points}</Text>
-                </TouchableOpacity>
-              ))
+              <Text style={styles.wordPlaceholder}>
+                Word: {placedTiles.map(t => t.letter).join('')} ({totalScore} pts)
+              </Text>
             )}
           </View>
         </View>
@@ -269,20 +536,20 @@ export default function GameScreen() {
             <Menu size={24} color="#fff" />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleShuffle} style={styles.actionButton}>
-            <Shuffle size={24} color="#fff" />
+          <TouchableOpacity onPress={handleShuffle} style={styles.actionButton} disabled={!isMyTurn}>
+            <Shuffle size={24} color={isMyTurn ? "#fff" : "#888"} />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleSubmit}
-            disabled={selectedTiles.length < 2 || loading}
-            style={[styles.submitButtonNew, (selectedTiles.length < 2 || loading) && styles.submitButtonDisabled]}
+            disabled={placedTiles.length < 2 || loading || !isMyTurn}
+            style={[styles.submitButtonNew, (placedTiles.length < 2 || loading || !isMyTurn) && styles.submitButtonDisabled]}
           >
             <Text style={styles.submitButtonTextNew}>Submit</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleClear} style={styles.actionButton}>
-            <X size={24} color="#fff" />
+          <TouchableOpacity onPress={handleClear} style={styles.actionButton} disabled={!isMyTurn}>
+            <X size={24} color={isMyTurn ? "#fff" : "#888"} />
           </TouchableOpacity>
 
           <View style={styles.scoreCircle}>
@@ -291,17 +558,29 @@ export default function GameScreen() {
         </View>
       </View>
 
-      {roundResult && (
-        <RoundResultModal
-          visible={showResult}
-          winnerName={roundResult.winnerName}
-          winnerWord={roundResult.winningWord}
-          winnerScore={roundResult.winningScore}
-          loserWord={roundResult.loserWord}
-          loserScore={roundResult.loserScore}
-          isWinner={roundResult.winnerId === profile?.id}
-          onNext={handleNextRound}
-        />
+      <GameSummaryModal
+        visible={showSummary}
+        summary={gameSummary}
+        currentPlayerId={profile?.id || ''}
+        player1Name={isPlayer1 ? profile?.display_name || 'You' : opponent}
+        player2Name={isPlayer1 ? opponent : profile?.display_name || 'You'}
+        onClose={() => {
+          setShowSummary(false);
+          router.back();
+        }}
+        onPlayAgain={() => {
+          setShowSummary(false);
+          router.replace('/(tabs)');
+        }}
+      />
+
+      {validatingWord && (
+        <View style={styles.validatingOverlay}>
+          <View style={styles.validatingModal}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.validatingText}>Validating word...</Text>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -351,24 +630,35 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
+  turnIndicatorOpponent: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    opacity: 0.6,
+  },
   turnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
   },
-  gemsContainer: {
+  topRightButtons: {
     flexDirection: 'row',
+    gap: spacing.xs,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 20,
-    gap: 4,
   },
-  gemsText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+  pauseButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resignButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(220,53,69,0.8)',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   playersSection: {
     flexDirection: 'row',
@@ -518,6 +808,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontStyle: 'italic',
   },
+  instructionText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: spacing.xs,
+  },
   selectedTile: {
     width: 52,
     height: 58,
@@ -601,5 +897,28 @@ const styles = StyleSheet.create({
     color: '#333',
     fontSize: 16,
     fontWeight: '700',
+  },
+  validatingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  validatingModal: {
+    backgroundColor: '#fff',
+    padding: spacing.xl,
+    borderRadius: 16,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  validatingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.primary,
   },
 });

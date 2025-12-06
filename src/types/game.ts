@@ -2,6 +2,8 @@ export type GameStatus = 'waiting' | 'playing' | 'paused' | 'finished';
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'none';
 export type TileType = 'DL' | 'TL' | 'DW' | 'TW' | 'CENTER' | 'NORMAL';
 export type Direction = 'horizontal' | 'vertical';
+export type TimerDuration = 180 | 300;
+export type PauseRequestStatus = 'none' | 'requested' | 'accepted';
 
 export interface Profile {
   id: string;
@@ -70,17 +72,30 @@ export interface Game {
   status: GameStatus;
   board: BoardCell[][];
   current_round: number;
-  current_rack: Tile[];
+  current_player_id?: string;
+  player1_rack: Tile[];
+  player2_rack: Tile[];
+  tile_bag: Tile[];
   timer_ends_at?: string;
   round_duration_seconds: number;
   player1_score: number;
   player2_score: number;
+  player1_moves_count: number;
+  player2_moves_count: number;
+  player1_highest_word?: string;
+  player1_highest_score?: number;
+  player2_highest_word?: string;
+  player2_highest_score?: number;
   winner_id?: string;
+  resigned_player_id?: string;
+  pause_requested_by?: string;
+  pause_status: PauseRequestStatus;
   is_private: boolean;
   join_code?: string;
   dictionary: string;
   created_at: string;
   updated_at: string;
+  current_rack?: Tile[];
 }
 
 export interface GameMove {
@@ -92,4 +107,22 @@ export interface GameMove {
   points: number;
   placement: Placement;
   created_at: string;
+}
+
+export interface GameSummary {
+  game_id: string;
+  winner_id: string;
+  player1_id: string;
+  player2_id: string;
+  player1_score: number;
+  player2_score: number;
+  player1_highest_word: string;
+  player1_highest_score: number;
+  player2_highest_word: string;
+  player2_highest_score: number;
+  player1_moves_count: number;
+  player2_moves_count: number;
+  total_moves: number;
+  duration_minutes: number;
+  resigned: boolean;
 }

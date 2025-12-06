@@ -1,10 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity } from 'react-native';
 import { BoardCell as BoardCellType } from '../types/game';
 import { colors } from '../theme/colors';
 
 interface Props {
   board: BoardCellType[][];
+  onCellPress?: (row: number, col: number) => void;
+  placedTiles?: { row: number; col: number; letter: string; points: number }[];
+  selectedCell?: { row: number; col: number } | null;
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -14,36 +17,75 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
 const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
 const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-export function GameBoard({ board }: Props) {
+export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell }: Props) {
   return (
     <View style={styles.container}>
       {board.map((row, rowIndex) => (
         <View key={rowIndex} style={styles.row}>
-          {row.map((cell, colIndex) => (
-            <BoardCell key={`${rowIndex}-${colIndex}`} cell={cell} />
-          ))}
+          {row.map((cell, colIndex) => {
+            const placedTile = placedTiles.find(t => t.row === rowIndex && t.col === colIndex);
+            const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
+            return (
+              <BoardCell
+                key={`${rowIndex}-${colIndex}`}
+                cell={cell}
+                rowIndex={rowIndex}
+                colIndex={colIndex}
+                onPress={onCellPress}
+                placedTile={placedTile}
+                isSelected={isSelected}
+              />
+            );
+          })}
         </View>
       ))}
     </View>
   );
 }
 
-function BoardCell({ cell }: { cell: BoardCellType }) {
+interface BoardCellProps {
+  cell: BoardCellType;
+  rowIndex: number;
+  colIndex: number;
+  onPress?: (row: number, col: number) => void;
+  placedTile?: { letter: string; points: number };
+  isSelected?: boolean;
+}
+
+function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected }: BoardCellProps) {
   const cellStyle = [
     styles.cell,
     getCellBackgroundStyle(cell),
+    isSelected && styles.selectedCell,
+    placedTile && styles.cellWithNewTile,
   ];
 
+  const handlePress = () => {
+    if (onPress && !cell.locked) {
+      onPress(rowIndex, colIndex);
+    }
+  };
+
   return (
-    <View style={cellStyle}>
-      {cell.letter ? (
+    <TouchableOpacity
+      style={cellStyle}
+      onPress={handlePress}
+      disabled={!onPress || cell.locked}
+      activeOpacity={0.7}
+    >
+      {placedTile ? (
+        <>
+          <Text style={styles.letter}>{placedTile.letter}</Text>
+          <Text style={styles.points}>{placedTile.points}</Text>
+        </>
+      ) : cell.letter ? (
         <>
           <Text style={styles.letter}>{cell.letter}</Text>
         </>
       ) : (
         <Text style={styles.label}>{getCellLabel(cell.type)}</Text>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -101,10 +143,26 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: '#ccc',
   },
+  selectedCell: {
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    backgroundColor: '#FFFACD',
+  },
+  cellWithNewTile: {
+    backgroundColor: '#F5E6D3',
+  },
   letter: {
     fontSize: Math.max(12, CELL_SIZE * 0.5),
     fontWeight: '700',
     color: '#2C5F2D',
+  },
+  points: {
+    fontSize: Math.max(6, CELL_SIZE * 0.2),
+    fontWeight: '700',
+    color: '#2C5F2D',
+    position: 'absolute',
+    bottom: 1,
+    right: 2,
   },
   label: {
     fontSize: Math.max(7, CELL_SIZE * 0.25),
