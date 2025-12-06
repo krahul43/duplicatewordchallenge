@@ -13,18 +13,23 @@ import { colors, spacing } from '../theme/colors';
 interface Props {
   tiles: Tile[];
   onTilePress: (tile: Tile, index: number) => void;
+  selectedTiles?: Tile[];
 }
 
-export function TileRack({ tiles, onTilePress }: Props) {
+export function TileRack({ tiles, onTilePress, selectedTiles = [] }: Props) {
   return (
     <View style={styles.container}>
-      {tiles.map((tile, index) => (
-        <TileComponent
-          key={index}
-          tile={tile}
-          onPress={() => onTilePress(tile, index)}
-        />
-      ))}
+      {tiles.map((tile, index) => {
+        const isUsed = selectedTiles.some((st) => st === tile);
+        return (
+          <TileComponent
+            key={index}
+            tile={tile}
+            onPress={() => onTilePress(tile, index)}
+            isUsed={isUsed}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -32,9 +37,10 @@ export function TileRack({ tiles, onTilePress }: Props) {
 interface TileProps {
   tile: Tile;
   onPress: () => void;
+  isUsed?: boolean;
 }
 
-function TileComponent({ tile, onPress }: TileProps) {
+function TileComponent({ tile, onPress, isUsed = false }: TileProps) {
   const scale = useSharedValue(1);
 
   const tap = Gesture.Tap()
@@ -52,9 +58,9 @@ function TileComponent({ tile, onPress }: TileProps) {
 
   return (
     <GestureDetector gesture={tap}>
-      <Animated.View style={[styles.tile, animatedStyle]}>
-        <Text style={styles.letter}>{tile.letter}</Text>
-        <Text style={styles.points}>{tile.points}</Text>
+      <Animated.View style={[styles.tile, isUsed && styles.tileUsed, animatedStyle]}>
+        <Text style={[styles.letter, isUsed && styles.letterUsed]}>{tile.letter}</Text>
+        <Text style={[styles.points, isUsed && styles.pointsUsed]}>{tile.points}</Text>
       </Animated.View>
     </GestureDetector>
   );
@@ -84,10 +90,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D4C4A8',
   },
+  tileUsed: {
+    backgroundColor: '#D4C4A8',
+    opacity: 0.5,
+  },
   letter: {
     fontSize: 32,
     fontWeight: '700',
     color: '#2C5F2D',
+  },
+  letterUsed: {
+    opacity: 0.7,
   },
   points: {
     fontSize: 12,
@@ -96,5 +109,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 3,
     right: 5,
+  },
+  pointsUsed: {
+    opacity: 0.7,
   },
 });

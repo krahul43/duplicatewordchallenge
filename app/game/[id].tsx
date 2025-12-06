@@ -242,7 +242,27 @@ export default function GameScreen() {
       </View>
 
       <View style={styles.bottomSection}>
-        <TileRack tiles={myRack} onTilePress={handleTilePress} />
+        <View style={styles.wordBuildingArea}>
+          <View style={styles.selectedTilesContainer}>
+            {selectedTiles.length === 0 ? (
+              <Text style={styles.wordPlaceholder}>Tap tiles to build your word</Text>
+            ) : (
+              selectedTiles.map((tile, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => handleRemoveTile(index)}
+                  style={styles.selectedTile}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.selectedTileLetter}>{tile.letter}</Text>
+                  <Text style={styles.selectedTilePoints}>{tile.points}</Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </View>
+
+        <TileRack tiles={myRack} onTilePress={handleTilePress} selectedTiles={selectedTiles} />
 
         <View style={styles.actionsBar}>
           <TouchableOpacity style={styles.actionButton}>
@@ -477,6 +497,54 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+  },
+  wordBuildingArea: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedTilesContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    minHeight: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  wordPlaceholder: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  selectedTile: {
+    width: 52,
+    height: 58,
+    backgroundColor: '#F5E6D3',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+    borderWidth: 3,
+    borderColor: '#43A047',
+  },
+  selectedTileLetter: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#2C5F2D',
+  },
+  selectedTilePoints: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C5F2D',
+    position: 'absolute',
+    bottom: 3,
+    right: 5,
   },
   actionsBar: {
     flexDirection: 'row',
