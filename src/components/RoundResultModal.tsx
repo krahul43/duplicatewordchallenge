@@ -1,8 +1,7 @@
+import { Monitor, User, Users } from 'lucide-react-native';
 import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Users, User, Monitor } from 'lucide-react-native';
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, spacing, typography } from '../theme/colors';
-import { router } from 'expo-router';
 
 interface Props {
   visible: boolean;

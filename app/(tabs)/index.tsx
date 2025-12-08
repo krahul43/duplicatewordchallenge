@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { User as UserIcon, Users } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { gameService } from '../../src/services/gameService';
 import { RootState } from '../../src/store';
@@ -55,7 +55,7 @@ export default function HomeScreen() {
     }
   }
 
-  async function createNewGame(isPrivate: boolean) {
+    async function createNewGame(isPrivate: boolean) {
     if (!canPlay()) {
       router.push('/subscription-required');
       return;
@@ -92,17 +92,41 @@ export default function HomeScreen() {
         )}
 
 
-        <View style={styles.logoContainer}>
-  <View style={styles.zigzagLeft} />
-  
+        {/* <View style={styles.logoContainer}>
+          <View style={styles.zigzagLeft} />
+          <View style={styles.logoBox}>
+          <Text style={styles.logoSubtext}>The Classic Crossword Game</Text>
+          <Text style={styles.logoText}>SCRABBLE</Text>
+          </View>
+          <View style={styles.zigzagRight} />
+        </View> */}
+
+
+
+
+{/* 
+<View style={styles.logoContainer}>
+  <View style={styles.zigzagSideLeft}>
+    <View style={styles.triangleLeft} />
+    <View style={styles.triangleLeft} />
+    <View style={styles.triangleLeft} />
+  </View>
+
   <View style={styles.logoBox}>
     <Text style={styles.logoSubtext}>The Classic Crossword Game</Text>
-
     <Text style={styles.logoText}>SCRABBLE</Text>
   </View>
 
-  <View style={styles.zigzagRight} />
-</View>
+  <View style={styles.zigzagSideRight}>
+    <View style={styles.triangleRight} />
+    <View style={styles.triangleRight} />
+    <View style={styles.triangleRight} />
+  </View>
+</View> */}
+
+
+        <Image style={{height:125, width:300}} source={require('../../assets/images/bannerimage.png')} />
+
 
 
         <Text style={styles.description}>
@@ -157,75 +181,162 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '500',
   },
-logoContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: spacing.xl,
-  marginTop: spacing.xl,
-},
 
-logoBox: {
-  backgroundColor: '#E64D3C',
-  paddingHorizontal: spacing.xl * 1.5,
-  paddingVertical: spacing.lg,
-  borderRadius: 12,
-  alignItems: 'center',
 
-  // SHADOW
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.15,
-  shadowRadius: 10,
-  elevation: 8,
 
-  overflow: 'visible',
-},
 
-logoText: {
-  fontSize: 44,
-  fontWeight: '900',
-  color: '#FFFFFF',
-  textAlign: 'center',
-  lineHeight: 44,
-  letterSpacing: 3,
-},
 
-logoSubtext: {
-  fontSize: 14,
-  color: '#FFFFFF',
-  marginTop: spacing.sm,
-  fontWeight: '500',
-},
-zigzagLeft: {
-  width: 12,
-  height: '100%',
-  backgroundColor: 'transparent',
-  borderRightWidth: 10,
-  borderRightColor: '#FFFFFF',
-  borderStyle: 'dashed',
-  opacity: 0.7,
-  marginRight: -6,
-},
 
-zigzagRight: {
-  width: 12,
-  height: '100%',
-  backgroundColor: 'transparent',
-  borderLeftWidth: 10,
-  borderLeftColor: '#FFFFFF',
-  borderStyle: 'dashed',
-  opacity: 0.7,
-  marginLeft: -6,
-},
+
+
+//   logoContainer: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//     marginBottom: spacing.xl,
+//     marginTop: spacing.xl,
+//   },
+// zigzagLeft: {
+//   width: 12,
+//   height: '100%',
+//   backgroundColor: 'transparent',
+//   borderRightWidth: 10,
+//   borderRightColor: '#FFFFFF',
+//   borderStyle: 'dashed',
+//   opacity: 0.7,
+//   marginRight: -6,
+// },
+//   logoBox: {
+//     backgroundColor: '#E64D3C',
+//     paddingHorizontal: spacing.xl * 1.5,
+//     paddingVertical: spacing.lg,
+//     borderRadius: 12,
+//     alignItems: 'center',
+//     // SHADOW 
+//     shadowColor: '#000',
+//     shadowOffset: { width: 0, height: 6 },
+//     shadowOpacity: 0.15,
+//     shadowRadius: 10,
+//     elevation: 8,
+//     overflow: 'visible',
+//   },
+//   logoSubtext: {
+//   fontSize: 14,
+//   color: '#FFFFFF',
+//   marginTop: spacing.sm,
+//   fontWeight: '500',
+// },
+//   logoText: {
+//     fontSize: 44,
+//   fontWeight: '900',
+//   color: '#FFFFFF',
+//   textAlign: 'center',
+//   lineHeight: 44,
+//   letterSpacing: 3,
+// },
+// zigzagRight: {
+//   width: 12,
+//   height: '100%',
+//   backgroundColor: 'transparent',
+//   borderLeftWidth: 10,
+//   borderLeftColor: '#FFFFFF',
+//   borderStyle: 'dashed',
+//   opacity: 0.7,
+//   marginLeft: -6,
+// },
+
+
+
+
+
+
+
+
+
+
+
+
+// logoContainer: {
+//   flexDirection: "row",
+//   alignItems: "center",
+//   justifyContent: "center",
+//   marginVertical: 30,
+// },
+// zigzagSideLeft: {
+//   justifyContent: "center",
+//   marginRight: -8,
+// },
+// zigzagSideRight: {
+//   justifyContent: "center",
+//   marginLeft: -8,
+// },
+// triangleLeft: {
+//   width: 0,
+//   height: 0,
+//   borderTopWidth: 10,
+//   borderBottomWidth: 10,
+//   borderRightWidth: 20,
+//   borderTopColor: "transparent",
+//   borderBottomColor: "transparent",
+//   borderRightColor: "#E64D3C",
+//   marginVertical: 2,
+// },
+// triangleRight: {
+//   width: 0,
+//   height: 0,
+//   borderTopWidth: 10,
+//   borderBottomWidth: 10,
+//   borderLeftWidth: 20,
+//   borderTopColor: "transparent",
+//   borderBottomColor: "transparent",
+//   borderLeftColor: "#E64D3C",
+//   marginVertical: 2,
+// },
+// logoBox: {
+//   backgroundColor: "#E64D3C",
+//   paddingHorizontal: 40,
+//   paddingVertical: 14,
+//   borderRadius: 12,
+//   alignItems: "center",
+// },
+// logoSubtext: {
+//   fontSize: 14,
+//   color: "#fff",
+//   marginBottom: 6,
+//   fontWeight: "500",
+// },
+// logoText: {
+//   fontSize: 40,
+//   fontWeight: "900",
+//   color: "#fff",
+//   letterSpacing: 4,
+// },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   description: {
-    ...typography.body,
+    fontSize:14,
     color: colors.text,
     textAlign: 'center',
-    lineHeight: 24,
     marginBottom: spacing.xl,
-    paddingHorizontal: spacing.md,
   },
   actions: {
     gap: spacing.md,
