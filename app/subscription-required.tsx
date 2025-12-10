@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import { Crown, Check } from 'lucide-react-native';
+import { Check, Crown } from 'lucide-react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { colors, spacing, typography } from '../src/theme/colors';
 
