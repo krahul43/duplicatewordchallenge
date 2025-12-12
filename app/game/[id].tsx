@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } fr
 import { useDispatch, useSelector } from 'react-redux';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameSummaryModal } from '../../src/components/GameSummaryModal';
+import { RoundResultModal } from '../../src/components/RoundResultModal';
 import { TileRack } from '../../src/components/TileRack';
 import { gameService } from '../../src/services/gameService';
 import { RootState } from '../../src/store';
@@ -27,6 +28,8 @@ export default function GameScreen() {
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [validatingWord, setValidatingWord] = useState(false);
+  const [showRoundResult, setShowRoundResult] = useState(false);
+  const [roundWinner, setRoundWinner] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return;
@@ -46,6 +49,11 @@ export default function GameScreen() {
 
       if (game.pause_status === 'requested' && game.pause_requested_by !== profile?.id) {
         showPauseRequest();
+      }
+
+      if (game.round_winner_id && game.current_round > (currentGame?.current_round || 0) && !showRoundResult) {
+        setRoundWinner(game.round_winner_id === profile?.id ? 'You' : opponent);
+        setTimeout(() => setShowRoundResult(true), 500);
       }
     });
 
@@ -91,13 +99,10 @@ export default function GameScreen() {
   useEffect(() => {
     if (!currentGame || !profile?.id) return;
 
-    const isPlayer1 = currentGame.player1_id === profile.id;
-    const rack = isPlayer1 ? currentGame.player1_rack : currentGame.player2_rack;
-
-    if (rack && rack.length > 0) {
-      dispatch(setMyRack(rack as Tile[]));
+    if (currentGame.shared_rack && currentGame.shared_rack.length > 0) {
+      dispatch(setMyRack(currentGame.shared_rack as Tile[]));
     }
-  }, [currentGame?.player1_rack, currentGame?.player2_rack, profile?.id]);
+  }, [currentGame?.shared_rack, profile?.id]);
 
   useEffect(() => {
     if (!currentGame?.timer_ends_at) return;
@@ -138,31 +143,31 @@ export default function GameScreen() {
   }
 
   function handleTilePress(tile: Tile, index: number) {
-    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
+    if (!currentGame || hasSubmitted) return;
     dispatch(addSelectedTile(tile));
   }
 
   function handleRemoveTile(index: number) {
-    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
+    if (!currentGame || hasSubmitted) return;
     const newSelected = [...selectedTiles];
     newSelected.splice(index, 1);
     dispatch(setSelectedTiles(newSelected));
   }
 
   function handleShuffle() {
-    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
+    if (!currentGame || hasSubmitted) return;
     dispatch(shuffleRack());
   }
 
   function handleClear() {
-    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
+    if (!currentGame || hasSubmitted) return;
     dispatch(clearSelectedTiles());
     setPlacedTiles([]);
     setSelectedCell(null);
   }
 
   function handleBoardCellPress(row: number, col: number) {
-    if (!currentGame || currentGame.current_player_id !== profile?.id) return;
+    if (!currentGame || hasSubmitted) return;
     if (selectedTiles.length === 0) {
       const existingTile = placedTiles.find(t => t.row === row && t.col === col);
       if (existingTile) {
@@ -194,8 +199,11 @@ export default function GameScreen() {
   async function handleSubmit() {
     if (!currentGame || !profile?.id) return;
 
-    if (currentGame.current_player_id !== profile.id) {
-      Alert.alert('Not Your Turn', 'Please wait for your opponent to play');
+    const isPlayer1 = currentGame.player1_id === profile.id;
+    const alreadySubmitted = isPlayer1 ? currentGame.player1_submitted : currentGame.player2_submitted;
+
+    if (alreadySubmitted) {
+      Alert.alert('Already Submitted', 'You have already submitted your word for this round. Wait for your opponent or for the timer to run out.');
       return;
     }
 
@@ -258,7 +266,13 @@ export default function GameScreen() {
       const tiles = placedTiles.map(t => ({ letter: t.letter, points: t.points }));
       const result = await gameService.submitWord(id, profile.id, word, tiles, placedTiles);
 
-      Alert.alert('Success!', `You scored ${result.score} points for "${word}"!`);
+      if (result.roundComplete) {
+        const winnerName = result.isWinner ? 'You' : 'Your opponent';
+        setRoundWinner(winnerName);
+        setShowRoundResult(true);
+      } else {
+        Alert.alert('Submitted!', `You scored ${result.score} points! Waiting for opponent...`);
+      }
 
       dispatch(clearSelectedTiles());
       setPlacedTiles([]);
@@ -303,10 +317,10 @@ export default function GameScreen() {
   }
 
   async function handleResume() {
-    if (!id || typeof id !== 'string' || !currentGame?.current_player_id) return;
+    if (!id || typeof id !== 'string') return;
 
     try {
-      await gameService.resumeGame(id, currentGame.current_player_id);
+      await gameService.resumeGame(id);
       setShowPauseModal(false);
     } catch (error) {
       Alert.alert('Error', 'Failed to resume game');
@@ -341,15 +355,18 @@ export default function GameScreen() {
   }
 
   async function handleTimeUp() {
-    const word = selectedTiles.map(t => t.letter).join('');
-    if (word.length >= 2) {
-      await handleSubmit();
+    if (!id || typeof id !== 'string') return;
+
+    try {
+      await gameService.handleTimeExpired(id);
+    } catch (error) {
+      console.error('Failed to handle time expiration:', error);
     }
   }
 
   function handleNextRound() {
-    setShowResult(false);
-    setRoundResult(null);
+    setShowRoundResult(false);
+    setRoundWinner(null);
     loadGame();
   }
 
@@ -361,44 +378,18 @@ export default function GameScreen() {
     );
   }
 
-  const isMyTurn = currentGame.current_player_id === profile?.id;
+  const isPlayer1 = currentGame.player1_id === profile?.id;
+  const hasSubmitted = isPlayer1 ? currentGame.player1_submitted : currentGame.player2_submitted;
+  const opponentSubmitted = isPlayer1 ? currentGame.player2_submitted : currentGame.player1_submitted;
   const opponent = currentGame.player1_id === profile?.id ? 'Player 2' : 'Player 1';
   const myScore = currentGame.player1_id === profile?.id ? currentGame.player1_score : currentGame.player2_score;
   const opponentScore = currentGame.player1_id === profile?.id ? currentGame.player2_score : currentGame.player1_score;
-  const isPlayer1 = currentGame.player1_id === profile?.id;
 
   const calculatePlacedScore = () => {
-    if (placedTiles.length === 0) return 0;
+    if (placedTiles.length === 0 || !currentGame) return 0;
 
-    let baseScore = 0;
-    let wordMultiplier = 1;
-
-    placedTiles.forEach(tile => {
-      const cell = currentGame.board[tile.row][tile.col];
-      let tileScore = tile.points;
-
-      if (!cell.locked) {
-        switch (cell.type) {
-          case 'DL':
-            tileScore *= 2;
-            break;
-          case 'TL':
-            tileScore *= 3;
-            break;
-          case 'DW':
-          case 'CENTER':
-            wordMultiplier *= 2;
-            break;
-          case 'TW':
-            wordMultiplier *= 3;
-            break;
-        }
-      }
-
-      baseScore += tileScore;
-    });
-
-    return baseScore * wordMultiplier;
+    const { calculateTotalScore: calcScore } = require('../../src/utils/gameLogic');
+    return calcScore(placedTiles, currentGame.board);
   };
 
   const totalScore = calculatePlacedScore();
@@ -420,8 +411,10 @@ export default function GameScreen() {
           <Text style={styles.flagText}>🇬🇧</Text>
         </View>
 
-        <View style={[styles.turnIndicator, !isMyTurn && styles.turnIndicatorOpponent]}>
-          <Text style={styles.turnText}>{isMyTurn ? 'Your Turn' : 'Opponent\'s Turn'}</Text>
+        <View style={[styles.turnIndicator, hasSubmitted && styles.turnIndicatorOpponent]}>
+          <Text style={styles.turnText}>
+            {hasSubmitted ? 'Submitted ✓' : opponentSubmitted ? 'Opponent Submitted' : `Round ${currentGame.current_round}`}
+          </Text>
         </View>
 
         <View style={styles.topRightButtons}>
@@ -498,6 +491,7 @@ export default function GameScreen() {
           onCellPress={handleBoardCellPress}
           placedTiles={placedTiles}
           selectedCell={selectedCell}
+          hasSelectedTiles={selectedTiles.length > 0}
         />
       </View>
 
@@ -505,26 +499,34 @@ export default function GameScreen() {
         <View style={styles.wordBuildingArea}>
           <View style={styles.selectedTilesContainer}>
             {selectedTiles.length === 0 && placedTiles.length === 0 ? (
-              <Text style={styles.wordPlaceholder}>Tap tiles, then tap board to place</Text>
+              <View style={styles.instructionContainer}>
+                <Text style={styles.instructionTitle}>💡 How to Play</Text>
+                <Text style={styles.wordPlaceholder}>1. Tap tiles from your rack below</Text>
+                <Text style={styles.wordPlaceholder}>2. Tap empty board cells to place them</Text>
+              </View>
             ) : selectedTiles.length > 0 ? (
               <>
-                <Text style={styles.instructionText}>Place tiles on board →</Text>
-                {selectedTiles.map((tile, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={() => handleRemoveTile(index)}
-                    style={styles.selectedTile}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.selectedTileLetter}>{tile.letter}</Text>
-                    <Text style={styles.selectedTilePoints}>{tile.points}</Text>
-                  </TouchableOpacity>
-                ))}
+                <Text style={styles.instructionTextActive}>👆 Tap board cells to place:</Text>
+                <View style={styles.selectedTilesRow}>
+                  {selectedTiles.map((tile, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => handleRemoveTile(index)}
+                      style={styles.selectedTile}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.selectedTileLetter}>{tile.letter}</Text>
+                      <Text style={styles.selectedTilePoints}>{tile.points}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </>
             ) : (
-              <Text style={styles.wordPlaceholder}>
-                Word: {placedTiles.map(t => t.letter).join('')} ({totalScore} pts)
-              </Text>
+              <View style={styles.currentWordContainer}>
+                <Text style={styles.currentWordLabel}>Current Word:</Text>
+                <Text style={styles.currentWord}>{placedTiles.map(t => t.letter).join('')}</Text>
+                <Text style={styles.currentScore}>{totalScore} points</Text>
+              </View>
             )}
           </View>
         </View>
@@ -536,20 +538,20 @@ export default function GameScreen() {
             <Menu size={24} color="#fff" />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleShuffle} style={styles.actionButton} disabled={!isMyTurn}>
-            <Shuffle size={24} color={isMyTurn ? "#fff" : "#888"} />
+          <TouchableOpacity onPress={handleShuffle} style={styles.actionButton} disabled={hasSubmitted}>
+            <Shuffle size={24} color={hasSubmitted ? "#888" : "#fff"} />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleSubmit}
-            disabled={placedTiles.length < 2 || loading || !isMyTurn}
-            style={[styles.submitButtonNew, (placedTiles.length < 2 || loading || !isMyTurn) && styles.submitButtonDisabled]}
+            disabled={placedTiles.length < 2 || loading || hasSubmitted}
+            style={[styles.submitButtonNew, (placedTiles.length < 2 || loading || hasSubmitted) && styles.submitButtonDisabled]}
           >
-            <Text style={styles.submitButtonTextNew}>Submit</Text>
+            <Text style={styles.submitButtonTextNew}>{hasSubmitted ? 'Submitted' : 'Submit'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleClear} style={styles.actionButton} disabled={!isMyTurn}>
-            <X size={24} color={isMyTurn ? "#fff" : "#888"} />
+          <TouchableOpacity onPress={handleClear} style={styles.actionButton} disabled={hasSubmitted}>
+            <X size={24} color={hasSubmitted ? "#888" : "#fff"} />
           </TouchableOpacity>
 
           <View style={styles.scoreCircle}>
@@ -557,6 +559,20 @@ export default function GameScreen() {
           </View>
         </View>
       </View>
+
+      {showRoundResult && currentGame?.round_winner_id && (
+        <RoundResultModal
+          visible={showRoundResult}
+          winnerName={currentGame.round_winner_id === profile?.id ? 'You' : opponent}
+          winnerWord={currentGame.round_winner_word || ''}
+          winnerScore={currentGame.round_winner_score || 0}
+          isWinner={currentGame.round_winner_id === profile?.id}
+          onNext={() => {
+            setShowRoundResult(false);
+            setRoundWinner(null);
+          }}
+        />
+      )}
 
       <GameSummaryModal
         visible={showSummary}
@@ -796,23 +812,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   selectedTilesContainer: {
-    flexDirection: 'row',
-    gap: 6,
-    minHeight: 58,
+    minHeight: 70,
     alignItems: 'center',
     justifyContent: 'center',
     flexWrap: 'wrap',
   },
-  wordPlaceholder: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 14,
-    fontStyle: 'italic',
+  instructionContainer: {
+    alignItems: 'center',
+    gap: 4,
   },
-  instructionText: {
-    color: 'rgba(255,255,255,0.8)',
+  instructionTitle: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  wordPlaceholder: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+  },
+  instructionTextActive: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  selectedTilesRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  currentWordContainer: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  currentWordLabel: {
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 12,
     fontWeight: '600',
-    marginRight: spacing.xs,
+  },
+  currentWord: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  currentScore: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: '700',
   },
   selectedTile: {
     width: 52,
@@ -919,6 +969,6 @@ const styles = StyleSheet.create({
   validatingText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text.primary,
+    color: colors.text,
   },
 });

@@ -72,9 +72,7 @@ export interface Game {
   status: GameStatus;
   board: BoardCell[][];
   current_round: number;
-  current_player_id?: string;
-  player1_rack: Tile[];
-  player2_rack: Tile[];
+  shared_rack: Tile[];
   tile_bag: Tile[];
   timer_ends_at?: string;
   round_duration_seconds: number;
@@ -86,6 +84,16 @@ export interface Game {
   player1_highest_score?: number;
   player2_highest_word?: string;
   player2_highest_score?: number;
+  player1_submitted?: boolean;
+  player2_submitted?: boolean;
+  player1_current_word?: string;
+  player1_current_score?: number;
+  player1_current_placement?: Placement;
+  player1_current_tiles?: { row: number; col: number; letter: string; points: number }[];
+  player2_current_word?: string;
+  player2_current_score?: number;
+  player2_current_placement?: Placement;
+  player2_current_tiles?: { row: number; col: number; letter: string; points: number }[];
   winner_id?: string;
   resigned_player_id?: string;
   pause_requested_by?: string;
@@ -95,7 +103,9 @@ export interface Game {
   dictionary: string;
   created_at: string;
   updated_at: string;
-  current_rack?: Tile[];
+  round_winner_id?: string;
+  round_winner_word?: string;
+  round_winner_score?: number;
 }
 
 export interface GameMove {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { BoardCell as BoardCellType } from '../types/game';
 import { colors } from '../theme/colors';
 
@@ -8,6 +9,7 @@ interface Props {
   onCellPress?: (row: number, col: number) => void;
   placedTiles?: { row: number; col: number; letter: string; points: number }[];
   selectedCell?: { row: number; col: number } | null;
+  hasSelectedTiles?: boolean;
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -17,7 +19,7 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
 const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
 const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell }: Props) {
+export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false }: Props) {
   return (
     <View style={styles.container}>
       {board.map((row, rowIndex) => (
@@ -25,6 +27,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell }
           {row.map((cell, colIndex) => {
             const placedTile = placedTiles.find(t => t.row === rowIndex && t.col === colIndex);
             const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
+            const canPlace = hasSelectedTiles && !cell.locked && !placedTile;
             return (
               <BoardCell
                 key={`${rowIndex}-${colIndex}`}
@@ -34,6 +37,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell }
                 onPress={onCellPress}
                 placedTile={placedTile}
                 isSelected={isSelected}
+                canPlace={canPlace}
               />
             );
           })}
@@ -50,41 +54,53 @@ interface BoardCellProps {
   onPress?: (row: number, col: number) => void;
   placedTile?: { letter: string; points: number };
   isSelected?: boolean;
+  canPlace?: boolean;
 }
 
-function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected }: BoardCellProps) {
+function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, canPlace }: BoardCellProps) {
+  const scale = useSharedValue(1);
+
   const cellStyle = [
     styles.cell,
     getCellBackgroundStyle(cell),
     isSelected && styles.selectedCell,
     placedTile && styles.cellWithNewTile,
+    canPlace && styles.cellCanPlace,
   ];
 
   const handlePress = () => {
     if (onPress && !cell.locked) {
+      scale.value = withSpring(0.9, {}, () => {
+        scale.value = withSpring(1);
+      });
       onPress(rowIndex, colIndex);
     }
   };
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
     <TouchableOpacity
-      style={cellStyle}
       onPress={handlePress}
       disabled={!onPress || cell.locked}
       activeOpacity={0.7}
     >
-      {placedTile ? (
-        <>
-          <Text style={styles.letter}>{placedTile.letter}</Text>
-          <Text style={styles.points}>{placedTile.points}</Text>
-        </>
-      ) : cell.letter ? (
-        <>
-          <Text style={styles.letter}>{cell.letter}</Text>
-        </>
-      ) : (
-        <Text style={styles.label}>{getCellLabel(cell.type)}</Text>
-      )}
+      <Animated.View style={[cellStyle, animatedStyle]}>
+        {placedTile ? (
+          <>
+            <Text style={styles.letter}>{placedTile.letter}</Text>
+            <Text style={styles.points}>{placedTile.points}</Text>
+          </>
+        ) : cell.letter ? (
+          <>
+            <Text style={styles.letter}>{cell.letter}</Text>
+          </>
+        ) : (
+          <Text style={styles.label}>{getCellLabel(cell.type)}</Text>
+        )}
+      </Animated.View>
     </TouchableOpacity>
   );
 }
@@ -150,6 +166,12 @@ const styles = StyleSheet.create({
   },
   cellWithNewTile: {
     backgroundColor: '#F5E6D3',
+  },
+  cellCanPlace: {
+    borderWidth: 2,
+    borderColor: '#43A047',
+    borderStyle: 'dashed',
+    opacity: 0.7,
   },
   letter: {
     fontSize: Math.max(12, CELL_SIZE * 0.5),

@@ -279,3 +279,198 @@ export function unflattenBoard(flatBoard: any[]): BoardCell[][] {
   }
   return board;
 }
+
+export function getNewTilesFromPlacement(
+  placements: { row: number; col: number; letter: string }[],
+  board: BoardCell[][]
+): { row: number; col: number; letter: string }[] {
+  return placements.filter(p => !board[p.row][p.col].locked);
+}
+
+export function extractMainWord(
+  placements: { row: number; col: number; letter: string }[],
+  board: BoardCell[][],
+  direction: 'horizontal' | 'vertical'
+): { word: string; start: { row: number; col: number }; positions: { row: number; col: number; letter: string }[] } {
+  if (placements.length === 0) {
+    return { word: '', start: { row: 0, col: 0 }, positions: [] };
+  }
+
+  const sorted = [...placements].sort((a, b) =>
+    direction === 'horizontal' ? a.col - b.col : a.row - b.row
+  );
+
+  let start = { ...sorted[0] };
+  let positions: { row: number; col: number; letter: string }[] = [];
+
+  if (direction === 'horizontal') {
+    while (start.col > 0 && board[start.row][start.col - 1].locked) {
+      start.col--;
+    }
+
+    let col = start.col;
+    while (col < 15 && (board[start.row][col].locked || placements.some(p => p.row === start.row && p.col === col))) {
+      const placement = placements.find(p => p.row === start.row && p.col === col);
+      const letter = placement?.letter || board[start.row][col].letter || '';
+      positions.push({ row: start.row, col, letter });
+      col++;
+    }
+  } else {
+    while (start.row > 0 && board[start.row - 1][start.col].locked) {
+      start.row--;
+    }
+
+    let row = start.row;
+    while (row < 15 && (board[row][start.col].locked || placements.some(p => p.row === row && p.col === start.col))) {
+      const placement = placements.find(p => p.row === row && p.col === start.col);
+      const letter = placement?.letter || board[row][start.col].letter || '';
+      positions.push({ row, col: start.col, letter });
+      row++;
+    }
+  }
+
+  return {
+    word: positions.map(p => p.letter).join(''),
+    start,
+    positions
+  };
+}
+
+export function findSideWords(
+  placements: { row: number; col: number; letter: string }[],
+  board: BoardCell[][]
+): { word: string; positions: { row: number; col: number; letter: string }[] }[] {
+  const sideWords: { word: string; positions: { row: number; col: number; letter: string }[] }[] = [];
+  const newTiles = getNewTilesFromPlacement(placements, board);
+
+  const isHorizontal = placements.every(p => p.row === placements[0].row);
+  const perpDirection = isHorizontal ? 'vertical' : 'horizontal';
+
+  for (const tile of newTiles) {
+    let positions: { row: number; col: number; letter: string }[] = [];
+
+    if (perpDirection === 'vertical') {
+      let startRow = tile.row;
+      while (startRow > 0 && board[startRow - 1][tile.col].locked) {
+        startRow--;
+      }
+
+      let row = startRow;
+      while (row < 15 && (board[row][tile.col].locked || (row === tile.row && tile.col === tile.col))) {
+        const letter = row === tile.row ? tile.letter : board[row][tile.col].letter || '';
+        positions.push({ row, col: tile.col, letter });
+        row++;
+      }
+    } else {
+      let startCol = tile.col;
+      while (startCol > 0 && board[tile.row][startCol - 1].locked) {
+        startCol--;
+      }
+
+      let col = startCol;
+      while (col < 15 && (board[tile.row][col].locked || (col === tile.col && tile.row === tile.row))) {
+        const letter = col === tile.col ? tile.letter : board[tile.row][col].letter || '';
+        positions.push({ row: tile.row, col, letter });
+        col++;
+      }
+    }
+
+    if (positions.length > 1) {
+      sideWords.push({
+        word: positions.map(p => p.letter).join(''),
+        positions
+      });
+    }
+  }
+
+  return sideWords;
+}
+
+export function calculateTotalScore(
+  placements: { row: number; col: number; letter: string; points: number }[],
+  board: BoardCell[][]
+): number {
+  if (placements.length === 0) return 0;
+
+  let totalScore = 0;
+
+  const isHorizontal = placements.every(p => p.row === placements[0].row);
+  const direction = isHorizontal ? 'horizontal' : 'vertical';
+
+  const mainWord = extractMainWord(placements, board, direction);
+  let mainWordScore = 0;
+  let mainWordMultiplier = 1;
+
+  for (const pos of mainWord.positions) {
+    const placement = placements.find(p => p.row === pos.row && p.col === pos.col);
+    const cell = board[pos.row][pos.col];
+
+    let letterScore = placement?.points || LETTER_SCORES[pos.letter] || 0;
+
+    if (placement && !cell.locked) {
+      switch (cell.type) {
+        case 'DL':
+          letterScore *= 2;
+          break;
+        case 'TL':
+          letterScore *= 3;
+          break;
+        case 'DW':
+        case 'CENTER':
+          mainWordMultiplier *= 2;
+          break;
+        case 'TW':
+          mainWordMultiplier *= 3;
+          break;
+      }
+    }
+
+    mainWordScore += letterScore;
+  }
+
+  mainWordScore *= mainWordMultiplier;
+  totalScore += mainWordScore;
+
+  const sideWords = findSideWords(placements, board);
+  for (const sideWord of sideWords) {
+    let sideScore = 0;
+    let sideMultiplier = 1;
+
+    for (const pos of sideWord.positions) {
+      const placement = placements.find(p => p.row === pos.row && p.col === pos.col);
+      const cell = board[pos.row][pos.col];
+
+      let letterScore = placement?.points || LETTER_SCORES[pos.letter] || 0;
+
+      if (placement && !cell.locked) {
+        switch (cell.type) {
+          case 'DL':
+            letterScore *= 2;
+            break;
+          case 'TL':
+            letterScore *= 3;
+            break;
+          case 'DW':
+          case 'CENTER':
+            sideMultiplier *= 2;
+            break;
+          case 'TW':
+            sideMultiplier *= 3;
+            break;
+        }
+      }
+
+      sideScore += letterScore;
+    }
+
+    sideScore *= sideMultiplier;
+    totalScore += sideScore;
+  }
+
+  const usedAllTiles = placements.length === 7;
+  if (usedAllTiles) {
+    totalScore += 50;
+  }
+
+  return totalScore;
+}

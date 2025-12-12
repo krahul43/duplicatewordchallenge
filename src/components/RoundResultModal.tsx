@@ -8,8 +8,6 @@ interface Props {
   winnerName: string;
   winnerWord: string;
   winnerScore: number;
-  loserWord?: string;
-  loserScore?: number;
   isWinner: boolean;
   onNext: () => void;
 }
@@ -19,8 +17,6 @@ export function RoundResultModal({
   winnerName,
   winnerWord,
   winnerScore,
-  loserWord,
-  loserScore,
   isWinner,
   onNext,
 }: Props) {
@@ -39,101 +35,24 @@ export function RoundResultModal({
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={onNext}
-          >
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-
           <Text style={styles.title}>
-            {isWinner ? 'You Won!' : `${winnerName} Won!`}
+            {isWinner ? '🎉 You Won This Round!' : `${winnerName} Won This Round`}
           </Text>
-          <Text style={styles.subtitle}>Dogna3 resigned</Text>
 
-          <View style={styles.playersRow}>
-            <View style={styles.playerAvatar}>
-              <Text style={styles.avatarText}>C</Text>
+          <View style={styles.winnerSection}>
+            <Text style={styles.subtitle}>Winning Word</Text>
+            <View style={styles.wordContainer}>
+              {winnerWord.split('').map((letter, index) => (
+                <View key={index} style={styles.letterTile}>
+                  <Text style={styles.letterTileText}>{letter}</Text>
+                </View>
+              ))}
             </View>
-            <View style={styles.playerAvatar}>
-              <Text style={styles.avatarText}>D</Text>
-            </View>
-          </View>
-
-          <View style={styles.playersNames}>
-            <Text style={styles.playerName}>Chairmanb</Text>
-            <View style={styles.heartIcon}><Text>♡</Text></View>
-            <Text style={styles.playerName}>DonnaS</Text>
-          </View>
-
-          <View style={styles.scoreBreakdown}>
-            <View style={styles.scoreRow}>
-              <Text style={styles.scoreLabel}>Top Word</Text>
-            </View>
-            <View style={styles.scoreValues}>
-              <Text style={styles.scoreValue}>0 Points</Text>
-              <Text style={styles.scoreValue}>0 Points</Text>
-            </View>
-
-            <View style={styles.scoreRow}>
-              <Text style={styles.scoreLabel}>Game Score</Text>
-            </View>
-            <View style={styles.scoreValues}>
-              <Text style={styles.scoreLarge}>0</Text>
-              <Text style={styles.scoreLarge}>0</Text>
-            </View>
-
-            <View style={styles.scoreRow}>
-              <Text style={styles.scoreLabel}>Time Penalties</Text>
-            </View>
-            <View style={styles.scoreValues}>
-              <Text style={styles.scoreLarge}>0</Text>
-              <Text style={styles.scoreLarge}>0</Text>
-            </View>
-
-            <View style={styles.scoreRow}>
-              <Text style={styles.scoreLabel}>Leftover Tiles</Text>
-            </View>
-            <View style={styles.scoreValues}>
-              <Text style={styles.scoreLarge}>0</Text>
-              <Text style={styles.scoreLarge}>0</Text>
-            </View>
-
-            <View style={styles.scoreRow}>
-              <Text style={styles.scoreLabel}>Total Score</Text>
-            </View>
-            <View style={styles.scoreValues}>
-              <Text style={styles.scoreLarge}>0</Text>
-              <Text style={styles.scoreLarge}>0</Text>
-            </View>
-          </View>
-
-          <Text style={styles.closeGameText}>Close Game!</Text>
-
-          <View style={styles.playTiles}>
-            {renderTileLetter('P')}
-            {renderTileLetter('L')}
-            {renderTileLetter('A')}
-            {renderTileLetter('Y')}
-          </View>
-
-          <View style={styles.gameOptions}>
-            <TouchableOpacity style={styles.optionButton}>
-              <Users size={32} color={colors.button.pink} />
-              <Text style={styles.optionText}>ONLINE</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionButton}>
-              <User size={32} color={colors.button.yellow} />
-              <Text style={styles.optionText}>FRIEND</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionButton}>
-              <Monitor size={32} color={colors.accent} />
-              <Text style={styles.optionText}>COMPUTER</Text>
-            </TouchableOpacity>
+            <Text style={styles.scoreText}>{winnerScore} Points</Text>
           </View>
 
           <TouchableOpacity style={styles.continueButton} onPress={onNext}>
-            <Text style={styles.continueButtonText}>Continue</Text>
+            <Text style={styles.continueButtonText}>Next Round</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -174,13 +93,28 @@ const styles = StyleSheet.create({
   title: {
     ...typography.h1,
     fontSize: 28,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.xl,
     textAlign: 'center',
   },
   subtitle: {
     ...typography.body,
     color: colors.muted,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  winnerSection: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  wordContainer: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  scoreText: {
+    ...typography.h2,
+    color: colors.primary,
+    fontWeight: '700',
   },
   playersRow: {
     flexDirection: 'row',
