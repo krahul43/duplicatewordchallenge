@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { User as UserIcon, Users } from 'lucide-react-native';
+import { User as UserIcon, Users, KeyRound } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -46,7 +46,8 @@ export default function HomeScreen() {
         await gameService.joinGame(waitingGame.id, profile.id);
         router.push(`/game/${waitingGame.id}`);
       } else {
-        await createNewGame(false);
+        const gameId = await gameService.createGame(profile.id, false);
+        router.push(`/matchmaking/${gameId}`);
       }
     } catch (error) {
       console.error('Failed to quick play:', error);
@@ -67,7 +68,7 @@ export default function HomeScreen() {
 
     try {
       const gameId = await gameService.createGame(profile.id, isPrivate);
-      router.push(`/game/${gameId}`);
+      router.push(`/matchmaking/${gameId}`);
     } catch (error) {
       console.error('Failed to create game:', error);
     } finally {
@@ -118,6 +119,17 @@ export default function HomeScreen() {
               <UserIcon size={24} color={colors.surface} />
             </View>
             <Text style={styles.actionButtonText}>Play a Friend</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/join-game')}
+            disabled={loading}
+          >
+            <View style={[styles.iconWrapper, styles.greenIcon]}>
+              <KeyRound size={24} color={colors.surface} />
+            </View>
+            <Text style={styles.actionButtonText}>Join with Code</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -186,6 +198,9 @@ scrableimg: {
   },
   yellowIcon: {
     backgroundColor: colors.button.yellow,
+  },
+  greenIcon: {
+    backgroundColor: '#4CAF50',
   },
   actionButtonText: {
     ...typography.body,

@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } fr
 import { useDispatch, useSelector } from 'react-redux';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameSummaryModal } from '../../src/components/GameSummaryModal';
+import { GameTimer } from '../../src/components/GameTimer';
 import { RoundResultModal } from '../../src/components/RoundResultModal';
 import { TileRack } from '../../src/components/TileRack';
 import { gameService } from '../../src/services/gameService';
@@ -447,9 +448,12 @@ export default function GameScreen() {
         </View>
 
         <View style={styles.centerIcon}>
-          <View style={styles.giftBox}>
-            <Text style={styles.giftEmoji}>🎁</Text>
-          </View>
+          {currentGame.status === 'playing' && currentGame.timer_ends_at && (
+            <GameTimer seconds={timeRemaining} totalSeconds={currentGame.round_duration_seconds} />
+          )}
+          {currentGame.status === 'waiting' && (
+            <Text style={styles.waitingText}>Waiting...</Text>
+          )}
         </View>
 
         <View style={[styles.playerCard, styles.opponentCard]}>
@@ -743,6 +747,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: -spacing.md,
     zIndex: 10,
+  },
+  waitingText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   giftBox: {
     width: 70,
