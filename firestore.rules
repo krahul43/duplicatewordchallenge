@@ -21,13 +21,8 @@ service cloud.firestore {
       return isAuthenticated() &&
              request.resource.data.player1_id == request.auth.uid &&
              request.resource.data.status == 'waiting' &&
-             request.resource.data.current_round == 0 &&
-             request.resource.data.player1_score == 0 &&
-             request.resource.data.player2_score == 0 &&
-             (request.resource.data.round_duration_seconds == 180 ||
-              request.resource.data.round_duration_seconds == 300) &&
-             request.resource.data.board is list &&
-             request.resource.data.shared_rack is list;
+             request.resource.data.player2_id == null &&
+             request.resource.data.is_private is bool;
     }
 
     match /profiles/{userId} {
@@ -70,8 +65,14 @@ service cloud.firestore {
       allow create: if isValidGameCreation();
 
       allow update: if isAuthenticated() &&
-                      (resource.data.player1_id == request.auth.uid ||
-                       resource.data.player2_id == request.auth.uid);
+                      (
+                        (resource.data.player1_id == request.auth.uid ||
+                         resource.data.player2_id == request.auth.uid) ||
+                        (resource.data.status == 'waiting' &&
+                         resource.data.player2_id == null &&
+                         resource.data.is_private == false &&
+                         request.resource.data.player2_id == request.auth.uid)
+                      );
 
       allow delete: if isAuthenticated() &&
                       resource.data.player1_id == request.auth.uid &&

@@ -1,14 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  runOnJS,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { spacing } from '../theme/colors';
 import { Tile } from '../types/game';
-import { colors, spacing } from '../theme/colors';
 
 interface Props {
   tiles: Tile[];
@@ -17,19 +17,37 @@ interface Props {
 }
 
 export function TileRack({ tiles, onTilePress, selectedTiles = [] }: Props) {
+  // Temporary test data
+  const testTiles: Tile[] = [
+    { letter: 'A', points: 1 },
+    { letter: 'B', points: 3 },
+    { letter: 'C', points: 3 },
+    { letter: 'D', points: 2 },
+    { letter: 'E', points: 1 },
+    { letter: 'F', points: 4 },
+    { letter: 'G', points: 2 },
+  ];
+
+  console.log('TileRack received tiles:', tiles);
+  const tilesToShow = tiles.length > 0 ? tiles : testTiles;
+
   return (
     <View style={styles.container}>
-      {tiles.map((tile, index) => {
-        const isUsed = selectedTiles.some((st) => st === tile);
-        return (
-          <TileComponent
-            key={index}
-            tile={tile}
-            onPress={() => onTilePress(tile, index)}
-            isUsed={isUsed}
-          />
-        );
-      })}
+      {tilesToShow.length === 0 ? (
+        <Text style={styles.emptyMessage}>Loading tiles...</Text>
+      ) : (
+        tilesToShow.map((tile, index) => {
+          const isUsed = selectedTiles.some((st) => st === tile);
+          return (
+            <TileComponent
+              key={index}
+              tile={tile}
+              onPress={() => onTilePress(tile, index)}
+              isUsed={isUsed}
+            />
+          );
+        })
+      )}
     </View>
   );
 }
@@ -72,8 +90,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
+    minHeight: 80,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderTopWidth: 2,
+    borderTopColor: 'rgba(255,255,255,0.3)',
   },
   tile: {
     width: 52,
@@ -112,5 +134,10 @@ const styles = StyleSheet.create({
   },
   pointsUsed: {
     opacity: 0.7,
+  },
+  emptyMessage: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

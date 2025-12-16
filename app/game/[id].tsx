@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { BookOpen, ChevronLeft, Droplets, Flag, Menu, Pause, Play, Shuffle, X, Zap } from 'lucide-react-native';
+import { ChevronLeft, Flag, Menu, Pause, Play, Shuffle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameSummaryModal } from '../../src/components/GameSummaryModal';
@@ -100,10 +100,20 @@ export default function GameScreen() {
   useEffect(() => {
     if (!currentGame || !profile?.id) return;
 
+    console.log('Current Game:', {
+      status: currentGame.status,
+      shared_rack: currentGame.shared_rack,
+      rack_length: currentGame.shared_rack?.length,
+      current_round: currentGame.current_round
+    });
+
     if (currentGame.shared_rack && currentGame.shared_rack.length > 0) {
+      console.log('Setting rack:', currentGame.shared_rack);
       dispatch(setMyRack(currentGame.shared_rack as Tile[]));
+    } else {
+      console.log('No shared rack found or rack is empty');
     }
-  }, [currentGame?.shared_rack, profile?.id]);
+  }, [currentGame?.shared_rack, profile?.id, currentGame?.status]);
 
   useEffect(() => {
     if (!currentGame?.timer_ends_at) return;
@@ -374,7 +384,18 @@ export default function GameScreen() {
   if (!currentGame) {
     return (
       <View style={styles.loading}>
-        <Text>Loading game...</Text>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={{ color: '#fff', marginTop: 16 }}>Loading game...</Text>
+      </View>
+    );
+  }
+
+  // If game is playing but no tiles yet, wait
+  if (currentGame.status === 'playing' && !currentGame.shared_rack) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={{ color: '#fff', marginTop: 16 }}>Loading tiles...</Text>
       </View>
     );
   }
@@ -401,8 +422,16 @@ export default function GameScreen() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  console.log('Rendering - myRack:', myRack, 'length:', myRack.length);
+  console.log('Rendering - currentGame status:', currentGame?.status);
+
   return (
     <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={28} color="#fff" />
@@ -467,27 +496,6 @@ export default function GameScreen() {
         </View>
       </View>
 
-      <View style={styles.powerUpsContainer}>
-        <TouchableOpacity style={styles.powerUpButton}>
-          <View style={styles.powerUpIcon}>
-            <Zap size={24} color="#FFD700" />
-          </View>
-          <Text style={styles.powerUpLabel}>Free</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.powerUpButton}>
-          <View style={styles.powerUpIcon}>
-            <BookOpen size={24} color="#9C27B0" />
-          </View>
-          <Text style={styles.powerUpLabel}>Free</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.powerUpButton}>
-          <View style={styles.powerUpIcon}>
-            <Droplets size={24} color="#00BCD4" />
-          </View>
-        </TouchableOpacity>
-      </View>
 
       <View style={styles.boardWrapper}>
         <GameBoard
@@ -535,7 +543,11 @@ export default function GameScreen() {
           </View>
         </View>
 
-        <TileRack tiles={myRack} onTilePress={handleTilePress} selectedTiles={selectedTiles} />
+        <TileRack
+          tiles={myRack.length > 0 ? myRack : (currentGame?.shared_rack as Tile[] || [])}
+          onTilePress={handleTilePress}
+          selectedTiles={selectedTiles}
+        />
 
         <View style={styles.actionsBar}>
           <TouchableOpacity style={styles.actionButton}>
@@ -563,6 +575,7 @@ export default function GameScreen() {
           </View>
         </View>
       </View>
+      </ScrollView>
 
       {showRoundResult && currentGame?.round_winner_id && (
         <RoundResultModal
@@ -610,6 +623,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#66BB6A',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 40,
   },
   loading: {
     flex: 1,
@@ -805,8 +822,8 @@ const styles = StyleSheet.create({
   boardWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
     paddingHorizontal: spacing.xs,
+    marginVertical: spacing.xs,
   },
   bottomSection: {
     backgroundColor: 'rgba(255,255,255,0.1)',
