@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { MatchmakingLoader } from '../../src/components/MatchmakingLoader';
@@ -16,21 +16,26 @@ export default function MatchmakingScreen() {
   const [game, setGame] = useState<Game | null>(null);
   const [matchmakingTimeout, setMatchmakingTimeout] = useState<NodeJS.Timeout | null>(null);
   const [hasTimedOut, setHasTimedOut] = useState(false);
+  const hasNavigatedRef = useRef(false);
+  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!id || typeof id !== 'string' || !profile?.id) return;
 
-    let hasNavigated = false;
+    hasNavigatedRef.current = false;
 
     const gameUnsubscribe = gameService.subscribeToGame(id, (updatedGame) => {
-      if (hasTimedOut || hasNavigated) return;
+      if (hasTimedOut || hasNavigatedRef.current) return;
 
       setGame(updatedGame);
 
       if (updatedGame.status === 'playing' && updatedGame.player2_id) {
-        hasNavigated = true;
+        hasNavigatedRef.current = true;
         if (matchmakingTimeout) {
           clearTimeout(matchmakingTimeout);
+        }
+        if (checkIntervalRef.current) {
+          clearInterval(checkIntervalRef.current);
         }
         console.log('Game started, navigating to game:', id);
         router.replace(`/game/${id}`);
@@ -40,12 +45,15 @@ export default function MatchmakingScreen() {
     const matchmakingUnsubscribe = matchmakingService.subscribeToMatchmaking(
       profile.id,
       async (request) => {
-        if (hasTimedOut || hasNavigated) return;
+        if (hasTimedOut || hasNavigatedRef.current) return;
 
         if (request?.status === 'matched' && request.gameId && request.gameId !== id) {
-          hasNavigated = true;
+          hasNavigatedRef.current = true;
           if (matchmakingTimeout) {
             clearTimeout(matchmakingTimeout);
+          }
+          if (checkIntervalRef.current) {
+            clearInterval(checkIntervalRef.current);
           }
           console.log('Matched with opponent, navigating to game:', request.gameId);
           await presenceService.setInGame(profile.id, request.gameId);
@@ -53,9 +61,12 @@ export default function MatchmakingScreen() {
         } else if (request?.status === 'matched' && request.gameId === id && request.opponentId) {
           const gameData = await gameService.getGame(id);
           if (gameData && gameData.status === 'playing' && gameData.player2_id) {
-            hasNavigated = true;
+            hasNavigatedRef.current = true;
             if (matchmakingTimeout) {
               clearTimeout(matchmakingTimeout);
+            }
+            if (checkIntervalRef.current) {
+              clearInterval(checkIntervalRef.current);
             }
             console.log('Opponent joined our game, navigating to game:', id);
             router.replace(`/game/${id}`);
@@ -65,8 +76,10 @@ export default function MatchmakingScreen() {
     );
 
     const checkInterval = setInterval(async () => {
-      if (hasNavigated || hasTimedOut) {
-        clearInterval(checkInterval);
+      if (hasNavigatedRef.current || hasTimedOut) {
+        if (checkIntervalRef.current) {
+          clearInterval(checkIntervalRef.current);
+        }
         return;
       }
 
@@ -74,8 +87,10 @@ export default function MatchmakingScreen() {
         const currentRequest = await matchmakingService.getMatchmakingRequest(profile.id);
 
         if (currentRequest?.status === 'matched' && currentRequest.gameId) {
-          hasNavigated = true;
-          clearInterval(checkInterval);
+          hasNavigatedRef.current = true;
+          if (checkIntervalRef.current) {
+            clearInterval(checkIntervalRef.current);
+          }
           if (matchmakingTimeout) {
             clearTimeout(matchmakingTimeout);
           }
@@ -88,8 +103,10 @@ export default function MatchmakingScreen() {
         if (id && typeof id === 'string') {
           const gameData = await gameService.getGame(id);
           if (gameData && gameData.status === 'playing' && gameData.player2_id) {
-            hasNavigated = true;
-            clearInterval(checkInterval);
+            hasNavigatedRef.current = true;
+            if (checkIntervalRef.current) {
+              clearInterval(checkIntervalRef.current);
+            }
             if (matchmakingTimeout) {
               clearTimeout(matchmakingTimeout);
             }
@@ -103,15 +120,27 @@ export default function MatchmakingScreen() {
       }
     }, 2000);
 
+    checkIntervalRef.current = checkInterval;
+
     const timeout = setTimeout(async () => {
+      if (hasNavigatedRef.current) {
+        console.log('Matchmaking timeout cancelled - already navigated');
+        return;
+      }
+
       console.log('Matchmaking timeout reached');
       setHasTimedOut(true);
-      clearInterval(checkInterval);
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+      }
 
       try {
         await matchmakingService.cancelMatchmaking(profile.id);
         if (id && typeof id === 'string') {
-          await gameService.resignGame(id, profile.id);
+          const gameData = await gameService.getGame(id);
+          if (gameData && gameData.status === 'waiting') {
+            await gameService.resignGame(id, profile.id);
+          }
         }
       } catch (error) {
         console.error('Error during timeout cleanup:', error);
@@ -135,9 +164,13 @@ export default function MatchmakingScreen() {
     loadGame();
 
     return () => {
+      console.log('Matchmaking screen cleanup');
+      hasNavigatedRef.current = true;
       gameUnsubscribe();
       matchmakingUnsubscribe();
-      clearInterval(checkInterval);
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+      }
       if (matchmakingTimeout) {
         clearTimeout(matchmakingTimeout);
       }
@@ -145,13 +178,21 @@ export default function MatchmakingScreen() {
   }, [id, profile?.id]);
 
   async function loadGame() {
-    if (!id || typeof id !== 'string') return;
+    if (!id || typeof id !== 'string' || hasNavigatedRef.current) return;
 
     try {
       const gameData = await gameService.getGame(id);
       if (gameData) {
         setGame(gameData);
-        if (gameData.status === 'playing') {
+        if (gameData.status === 'playing' && !hasNavigatedRef.current) {
+          hasNavigatedRef.current = true;
+          if (matchmakingTimeout) {
+            clearTimeout(matchmakingTimeout);
+          }
+          if (checkIntervalRef.current) {
+            clearInterval(checkIntervalRef.current);
+          }
+          console.log('Game already playing, navigating immediately');
           router.replace(`/game/${id}`);
         }
       }
@@ -161,17 +202,26 @@ export default function MatchmakingScreen() {
   }
 
   async function handleCancel() {
-    if (!profile?.id || hasTimedOut) return;
+    if (!profile?.id || hasTimedOut || hasNavigatedRef.current) return;
 
     try {
+      hasNavigatedRef.current = true;
+
       if (matchmakingTimeout) {
         clearTimeout(matchmakingTimeout);
+      }
+
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
       }
 
       await matchmakingService.cancelMatchmaking(profile.id);
 
       if (id && typeof id === 'string') {
-        await gameService.resignGame(id, profile.id);
+        const gameData = await gameService.getGame(id);
+        if (gameData && gameData.status === 'waiting') {
+          await gameService.resignGame(id, profile.id);
+        }
       }
 
       router.back();

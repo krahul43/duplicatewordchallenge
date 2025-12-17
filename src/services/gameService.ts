@@ -3,20 +3,19 @@ import {
   doc,
   getDoc,
   getDocs,
-  setDoc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
   limit,
   onSnapshot,
   or,
-  Timestamp,
+  orderBy,
+  query,
+  setDoc,
   Unsubscribe,
+  updateDoc,
+  where
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Game, Round, GameMove, Tile, BoardCell, GameSummary, TimerDuration } from '../types/game';
-import { initializeBoard, generateRack, generateTileBag, drawTiles, flattenBoard, unflattenBoard } from '../utils/gameLogic';
+import { Game, GameSummary, Round, Tile, TimerDuration } from '../types/game';
+import { drawTiles, flattenBoard, generateTileBag, initializeBoard, unflattenBoard } from '../utils/gameLogic';
 
 function calculateScore(tiles: Tile[]): number {
   return tiles.reduce((sum, tile) => sum + tile.points, 0);
@@ -275,9 +274,6 @@ export const gameService = {
       player2_moves_count: game.player2_moves_count + 1,
       player1_submitted: false,
       player2_submitted: false,
-      round_winner_id: roundWinnerId,
-      round_winner_word: winningWord,
-      round_winner_score: winningScore,
       current_round: game.current_round + 1,
       timer_ends_at: timerEnd,
       player1_current_word: null,
@@ -288,12 +284,22 @@ export const gameService = {
       player2_current_tiles: null,
     };
 
-    if (!game.player1_highest_score || (player1Score || 0) > game.player1_highest_score) {
+    if (roundWinnerId) {
+      updateData.round_winner_id = roundWinnerId;
+    }
+    if (winningWord) {
+      updateData.round_winner_word = winningWord;
+    }
+    if (winningScore !== null && winningScore !== undefined) {
+      updateData.round_winner_score = winningScore;
+    }
+
+    if (player1Word && player1Score && (!game.player1_highest_score || player1Score > game.player1_highest_score)) {
       updateData.player1_highest_word = player1Word;
       updateData.player1_highest_score = player1Score;
     }
 
-    if (!game.player2_highest_score || (player2Score || 0) > game.player2_highest_score) {
+    if (player2Word && player2Score && (!game.player2_highest_score || player2Score > game.player2_highest_score)) {
       updateData.player2_highest_word = player2Word;
       updateData.player2_highest_score = player2Score;
     }
@@ -410,6 +416,12 @@ export const gameService = {
     }
 
     const game = gameSnap.data() as Game;
+
+    if (game.status === 'finished') {
+      console.log('Game already finished, skipping resign');
+      return;
+    }
+
     const winnerId = game.player1_id === playerId ? game.player2_id : game.player1_id;
 
     await updateDoc(gameRef, {
