@@ -6,6 +6,7 @@ import { MatchmakingLoader } from '../../src/components/MatchmakingLoader';
 import { WaitingForFriendScreen } from '../../src/components/WaitingForFriendScreen';
 import { gameService } from '../../src/services/gameService';
 import { matchmakingService } from '../../src/services/matchmakingService';
+import { presenceService } from '../../src/services/presenceService';
 import { RootState } from '../../src/store';
 import { Game } from '../../src/types/game';
 
@@ -31,11 +32,12 @@ export default function MatchmakingScreen() {
 
     const matchmakingUnsubscribe = matchmakingService.subscribeToMatchmaking(
       profile.id,
-      (request) => {
+      async (request) => {
         if (request?.status === 'matched' && request.gameId) {
           if (matchmakingTimeout) {
             clearTimeout(matchmakingTimeout);
           }
+          await presenceService.setInGame(profile.id, request.gameId);
           router.replace(`/game/${request.gameId}`);
         }
       }

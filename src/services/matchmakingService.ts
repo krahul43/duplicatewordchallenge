@@ -61,9 +61,8 @@ export const matchmakingService = {
       });
 
       await presenceService.setInGame(userId, gameId);
-      await presenceService.setInGame(existingOpponent.userId, gameId);
 
-      await gameService.joinGame(gameId, existingOpponent.userId);
+      await gameService.joinGame(gameId, userId);
 
       return gameId;
     }
