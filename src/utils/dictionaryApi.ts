@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const CACHE_KEY = 'word_validation_cache';
 const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
@@ -10,9 +12,9 @@ interface WordCache {
   [word: string]: CacheEntry;
 }
 
-function getCache(): WordCache {
+async function getCache(): Promise<WordCache> {
   try {
-    const cached = localStorage.getItem(CACHE_KEY);
+    const cached = await AsyncStorage.getItem(CACHE_KEY);
     if (cached) {
       return JSON.parse(cached);
     }
@@ -22,16 +24,16 @@ function getCache(): WordCache {
   return {};
 }
 
-function setCache(cache: WordCache): void {
+async function setCache(cache: WordCache): Promise<void> {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cache));
   } catch (error) {
     console.error('Failed to save cache:', error);
   }
 }
 
-function getCachedResult(word: string): boolean | null {
-  const cache = getCache();
+async function getCachedResult(word: string): Promise<boolean | null> {
+  const cache = await getCache();
   const entry = cache[word.toLowerCase()];
 
   if (entry && Date.now() - entry.timestamp < CACHE_DURATION) {
@@ -41,13 +43,13 @@ function getCachedResult(word: string): boolean | null {
   return null;
 }
 
-function cacheResult(word: string, isValid: boolean): void {
-  const cache = getCache();
+async function cacheResult(word: string, isValid: boolean): Promise<void> {
+  const cache = await getCache();
   cache[word.toLowerCase()] = {
     isValid,
     timestamp: Date.now(),
   };
-  setCache(cache);
+  await setCache(cache);
 }
 
 export async function validateWordWithDictionary(word: string): Promise<boolean> {
@@ -57,7 +59,7 @@ export async function validateWordWithDictionary(word: string): Promise<boolean>
 
   const lowerWord = word.toLowerCase();
 
-  const cached = getCachedResult(lowerWord);
+  const cached = await getCachedResult(lowerWord);
   if (cached !== null) {
     return cached;
   }
@@ -74,7 +76,7 @@ export async function validateWordWithDictionary(word: string): Promise<boolean>
     );
 
     const isValid = response.ok;
-    cacheResult(lowerWord, isValid);
+    await cacheResult(lowerWord, isValid);
 
     return isValid;
   } catch (error) {

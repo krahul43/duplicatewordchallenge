@@ -36,38 +36,14 @@ export const matchmakingService = {
       throw new Error('User ID mismatch');
     }
 
+    console.log(`[Matchmaking] ${displayName} joining matchmaking`);
+
     const requestRef = doc(db, 'matchmaking', userId);
 
     await presenceService.setLookingForGame(userId, true);
 
-    const existingOpponent = await this.findAvailableOpponent(userId);
-
-    if (existingOpponent) {
-      const gameId = existingOpponent.gameId || await gameService.createGame(existingOpponent.userId, false);
-
-      await setDoc(requestRef, {
-        userId,
-        displayName,
-        createdAt: new Date().toISOString(),
-        status: 'matched',
-        gameId,
-        opponentId: existingOpponent.userId,
-      });
-
-      const opponentRequestRef = doc(db, 'matchmaking', existingOpponent.userId);
-      await updateDoc(opponentRequestRef, {
-        status: 'matched',
-        opponentId: userId,
-      });
-
-      await presenceService.setInGame(userId, gameId);
-
-      await gameService.joinGame(gameId, userId);
-
-      return gameId;
-    }
-
     const gameId = await gameService.createGame(userId, false);
+    console.log(`[Matchmaking] ${displayName} created game: ${gameId}`);
 
     await setDoc(requestRef, {
       userId,
@@ -77,6 +53,56 @@ export const matchmakingService = {
       gameId,
     });
 
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    let existingOpponent = await this.findAvailableOpponent(userId);
+    console.log(`[Matchmaking] ${displayName} first search result:`, existingOpponent?.displayName || 'none');
+
+    if (!existingOpponent) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      existingOpponent = await this.findAvailableOpponent(userId);
+      console.log(`[Matchmaking] ${displayName} second search result:`, existingOpponent?.displayName || 'none');
+    }
+
+    if (existingOpponent && existingOpponent.gameId && existingOpponent.gameId !== gameId) {
+      console.log(`[Matchmaking] ${displayName} found opponent ${existingOpponent.displayName}, joining game ${existingOpponent.gameId}`);
+      try {
+        await gameService.joinGame(existingOpponent.gameId, userId);
+
+        await updateDoc(requestRef, {
+          status: 'matched',
+          gameId: existingOpponent.gameId,
+          opponentId: existingOpponent.userId,
+        });
+
+        const opponentRequestRef = doc(db, 'matchmaking', existingOpponent.userId);
+        await updateDoc(opponentRequestRef, {
+          status: 'matched',
+          opponentId: userId,
+        });
+
+        await presenceService.setInGame(userId, existingOpponent.gameId);
+
+        const myGameRef = doc(db, 'games', gameId);
+        const myGameSnap = await getDoc(myGameRef);
+        if (myGameSnap.exists()) {
+          const myGameData = myGameSnap.data();
+          if (myGameData.status === 'waiting' && !myGameData.player2_id) {
+            await updateDoc(myGameRef, {
+              status: 'finished',
+              updated_at: new Date().toISOString(),
+            });
+          }
+        }
+
+        console.log(`[Matchmaking] ${displayName} successfully matched! Game: ${existingOpponent.gameId}`);
+        return existingOpponent.gameId;
+      } catch (error) {
+        console.error(`[Matchmaking] ${displayName} failed to join existing game:`, error);
+      }
+    }
+
+    console.log(`[Matchmaking] ${displayName} waiting for opponent in game: ${gameId}`);
     return gameId;
   },
 
@@ -89,7 +115,7 @@ export const matchmakingService = {
       where('status', '==', 'searching'),
       where('createdAt', '>', twoMinutesAgo),
       orderBy('createdAt', 'asc'),
-      limit(1)
+      limit(10)
     );
 
     const snapshot = await getDocs(q);
@@ -98,21 +124,45 @@ export const matchmakingService = {
       return null;
     }
 
-    const potentialMatch = snapshot.docs[0].data() as MatchmakingRequest;
+    for (const docSnapshot of snapshot.docs) {
+      const potentialMatch = docSnapshot.data() as MatchmakingRequest;
 
-    if (potentialMatch.userId === currentUserId) {
-      return null;
+      if (potentialMatch.userId === currentUserId) {
+        continue;
+      }
+
+      if (!potentialMatch.gameId) {
+        continue;
+      }
+
+      const gameRef = doc(db, 'games', potentialMatch.gameId);
+      const gameSnap = await getDoc(gameRef);
+
+      if (!gameSnap.exists()) {
+        await deleteDoc(docSnapshot.ref);
+        continue;
+      }
+
+      const gameData = gameSnap.data();
+      if (gameData.status !== 'waiting' || gameData.player2_id !== null) {
+        continue;
+      }
+
+      return potentialMatch;
     }
 
-    const opponentPresence = await presenceService.getUsersLookingForGame(currentUserId);
-    const isOpponentOnline = opponentPresence.some(p => p.userId === potentialMatch.userId);
+    return null;
+  },
 
-    if (!isOpponentOnline) {
-      await deleteDoc(snapshot.docs[0].ref);
-      return null;
+  async getMatchmakingRequest(userId: string): Promise<MatchmakingRequest | null> {
+    const requestRef = doc(db, 'matchmaking', userId);
+    const requestSnap = await getDoc(requestRef);
+
+    if (requestSnap.exists()) {
+      return requestSnap.data() as MatchmakingRequest;
     }
 
-    return potentialMatch;
+    return null;
   },
 
   async cancelMatchmaking(userId: string): Promise<void> {
