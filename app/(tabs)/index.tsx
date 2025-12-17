@@ -1,9 +1,11 @@
 import { router } from 'expo-router';
-import { User as UserIcon, Users, KeyRound } from 'lucide-react-native';
+import { KeyRound, User as UserIcon, Users } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { gameService } from '../../src/services/gameService';
+import { matchmakingService } from '../../src/services/matchmakingService';
+import { presenceService } from '../../src/services/presenceService';
 import { RootState } from '../../src/store';
 import { colors, spacing, typography } from '../../src/theme/colors';
 import { Game } from '../../src/types/game';
@@ -16,7 +18,15 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadGames();
-  }, []);
+
+    if (profile?.id && profile?.display_name) {
+      presenceService.setUserOnline(profile.id, profile.display_name);
+
+      return () => {
+        presenceService.setUserOffline(profile.id);
+      };
+    }
+  }, [profile?.id]);
 
   async function loadGames() {
     if (!profile) return;
@@ -35,22 +45,22 @@ export default function HomeScreen() {
       return;
     }
 
-    if (!profile?.id) return;
+    if (!profile?.id || !profile?.display_name) return;
 
     setLoading(true);
 
     try {
-      const waitingGame = await gameService.findWaitingGame(profile.id);
+      await matchmakingService.cleanupOldRequests();
 
-      if (waitingGame) {
-        await gameService.joinGame(waitingGame.id, profile.id);
-        router.push(`/game/${waitingGame.id}`);
-      } else {
-        const gameId = await gameService.createGame(profile.id, false);
-        router.push(`/matchmaking/${gameId}`);
-      }
+      const gameId = await matchmakingService.joinMatchmaking(
+        profile.id,
+        profile.display_name
+      );
+
+      router.push(`/matchmaking/${gameId}`);
     } catch (error) {
-      console.error('Failed to quick play:', error);
+      console.error('Failed to start matchmaking:', error);
+      await presenceService.setLookingForGame(profile.id, false);
     } finally {
       setLoading(false);
     }

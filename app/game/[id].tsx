@@ -1,16 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { doc, getDoc } from 'firebase/firestore';
 import { ChevronLeft, Flag, Menu, Pause, Play, Shuffle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../src/lib/firebase';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameSummaryModal } from '../../src/components/GameSummaryModal';
 import { GameTimer } from '../../src/components/GameTimer';
 import { RoundResultModal } from '../../src/components/RoundResultModal';
 import { TileRack } from '../../src/components/TileRack';
+import { db } from '../../src/lib/firebase';
 import { gameService } from '../../src/services/gameService';
+import { presenceService } from '../../src/services/presenceService';
 import { RootState } from '../../src/store';
 import { addSelectedTile, clearSelectedTiles, setCurrentGame, setMyRack, setSelectedTiles, shuffleRack } from '../../src/store/slices/gameSlice';
 import { colors, spacing } from '../../src/theme/colors';
@@ -36,7 +37,9 @@ export default function GameScreen() {
   const [opponentProfile, setOpponentProfile] = useState<{ displayName: string; id: string } | null>(null);
 
   useEffect(() => {
-    if (!id || typeof id !== 'string') return;
+    if (!id || typeof id !== 'string' || !profile?.id) return;
+
+    presenceService.setInGame(profile.id, id);
 
     loadGame();
 
@@ -53,6 +56,9 @@ export default function GameScreen() {
 
       if (game.status === 'finished' && !showSummary) {
         loadGameSummary();
+        if (profile?.id && profile?.display_name) {
+          presenceService.setUserOnline(profile.id, profile.display_name);
+        }
       }
 
       if (game.pause_status === 'requested' && game.pause_requested_by !== profile?.id) {
@@ -68,8 +74,11 @@ export default function GameScreen() {
 
     return () => {
       unsubscribe();
+      if (profile?.id && profile?.display_name) {
+        presenceService.setUserOnline(profile.id, profile.display_name);
+      }
     };
-  }, [id, opponentProfile]);
+  }, [id, opponentProfile, profile?.id]);
 
   async function loadOpponentProfile(game: Game) {
     if (!profile?.id) return;
