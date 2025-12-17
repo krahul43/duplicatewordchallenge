@@ -7,8 +7,12 @@ import { auth, db } from '../../src/lib/firebase';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { colors, spacing, typography } from '../../src/theme/colors';
+import { useDispatch } from 'react-redux';
+import { setProfile, setUser } from '../../src/store/slices/authSlice';
+import { setSubscriptionData } from '../../src/store/slices/subscriptionSlice';
 
 export default function RegisterScreen() {
+  const dispatch = useDispatch();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,10 +50,10 @@ export default function RegisterScreen() {
       const trialEndsAt = new Date();
       trialEndsAt.setDate(trialEndsAt.getDate() + 7);
 
-      await setDoc(doc(db, 'profiles', user.uid), {
+      const profileData = {
         displayName: displayName,
         email: email.trim(),
-        subscriptionStatus: 'trialing',
+        subscriptionStatus: 'trialing' as const,
         trialStartsAt: new Date().toISOString(),
         trialEndsAt: trialEndsAt.toISOString(),
         gamesPlayed: 0,
@@ -58,7 +62,46 @@ export default function RegisterScreen() {
         highestWordScore: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      });
+      };
+
+      await setDoc(doc(db, 'profiles', user.uid), profileData);
+
+      dispatch(
+        setUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          emailVerified: user.emailVerified,
+        })
+      );
+
+      dispatch(
+        setProfile({
+          id: user.uid,
+          display_name: profileData.displayName,
+          subscription_status: profileData.subscriptionStatus,
+          subscription_provider: undefined,
+          trial_starts_at: profileData.trialStartsAt,
+          trial_ends_at: profileData.trialEndsAt,
+          current_period_end: undefined,
+          games_played: profileData.gamesPlayed,
+          games_won: profileData.gamesWon,
+          total_score: profileData.totalScore,
+          highest_word_score: profileData.highestWordScore,
+          created_at: profileData.createdAt,
+          updated_at: profileData.updatedAt,
+        })
+      );
+
+      dispatch(
+        setSubscriptionData({
+          status: profileData.subscriptionStatus,
+          provider: null,
+          trialEndsAt: profileData.trialEndsAt,
+          currentPeriodEnd: null,
+        })
+      );
 
       router.replace('/(tabs)');
     } catch (err: any) {

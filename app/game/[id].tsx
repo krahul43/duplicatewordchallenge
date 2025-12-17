@@ -3,6 +3,8 @@ import { ChevronLeft, Flag, Menu, Pause, Play, Shuffle, X } from 'lucide-react-n
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../src/lib/firebase';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameSummaryModal } from '../../src/components/GameSummaryModal';
 import { GameTimer } from '../../src/components/GameTimer';
@@ -31,6 +33,7 @@ export default function GameScreen() {
   const [validatingWord, setValidatingWord] = useState(false);
   const [showRoundResult, setShowRoundResult] = useState(false);
   const [roundWinner, setRoundWinner] = useState<string | null>(null);
+  const [opponentProfile, setOpponentProfile] = useState<{ displayName: string; id: string } | null>(null);
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return;
@@ -39,6 +42,10 @@ export default function GameScreen() {
 
     const unsubscribe = gameService.subscribeToGame(id, (game) => {
       dispatch(setCurrentGame(game));
+
+      if (game.player2_id && !opponentProfile) {
+        loadOpponentProfile(game);
+      }
 
       if (game.status === 'waiting' && game.player2_id) {
         startGame(game);
@@ -52,8 +59,9 @@ export default function GameScreen() {
         showPauseRequest();
       }
 
+      const opponentName = opponentProfile?.displayName || 'Opponent';
       if (game.round_winner_id && game.current_round > (currentGame?.current_round || 0) && !showRoundResult) {
-        setRoundWinner(game.round_winner_id === profile?.id ? 'You' : opponent);
+        setRoundWinner(game.round_winner_id === profile?.id ? 'You' : opponentName);
         setTimeout(() => setShowRoundResult(true), 500);
       }
     });
@@ -61,7 +69,28 @@ export default function GameScreen() {
     return () => {
       unsubscribe();
     };
-  }, [id]);
+  }, [id, opponentProfile]);
+
+  async function loadOpponentProfile(game: Game) {
+    if (!profile?.id) return;
+
+    const opponentId = game.player1_id === profile.id ? game.player2_id : game.player1_id;
+
+    if (!opponentId) return;
+
+    try {
+      const opponentDoc = await getDoc(doc(db, 'profiles', opponentId));
+      if (opponentDoc.exists()) {
+        const data = opponentDoc.data();
+        setOpponentProfile({
+          displayName: data.displayName || 'Player',
+          id: opponentId,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load opponent profile:', error);
+    }
+  }
 
   async function loadGameSummary() {
     if (!id || typeof id !== 'string') return;
@@ -403,7 +432,7 @@ export default function GameScreen() {
   const isPlayer1 = currentGame.player1_id === profile?.id;
   const hasSubmitted = isPlayer1 ? currentGame.player1_submitted : currentGame.player2_submitted;
   const opponentSubmitted = isPlayer1 ? currentGame.player2_submitted : currentGame.player1_submitted;
-  const opponent = currentGame.player1_id === profile?.id ? 'Player 2' : 'Player 1';
+  const opponent = opponentProfile?.displayName || 'Opponent';
   const myScore = currentGame.player1_id === profile?.id ? currentGame.player1_score : currentGame.player2_score;
   const opponentScore = currentGame.player1_id === profile?.id ? currentGame.player2_score : currentGame.player1_score;
 
@@ -488,7 +517,9 @@ export default function GameScreen() {
         <View style={[styles.playerCard, styles.opponentCard]}>
           <View style={styles.playerCardInner}>
             <View style={[styles.playerAvatar, styles.opponentAvatar]}>
-              <Text style={styles.playerAvatarText}>W</Text>
+              <Text style={styles.playerAvatarText}>
+                {opponent?.charAt(0).toUpperCase() || '?'}
+              </Text>
             </View>
             <Text style={styles.playerLabel}>{opponent}</Text>
             <Text style={styles.playerScore}>{opponentScore}</Text>
@@ -595,8 +626,8 @@ export default function GameScreen() {
         visible={showSummary}
         summary={gameSummary}
         currentPlayerId={profile?.id || ''}
-        player1Name={isPlayer1 ? profile?.display_name || 'You' : opponent}
-        player2Name={isPlayer1 ? opponent : profile?.display_name || 'You'}
+        player1Name={isPlayer1 ? profile?.display_name || 'You' : (opponentProfile?.displayName || 'Opponent')}
+        player2Name={isPlayer1 ? (opponentProfile?.displayName || 'Opponent') : profile?.display_name || 'You'}
         onClose={() => {
           setShowSummary(false);
           router.back();

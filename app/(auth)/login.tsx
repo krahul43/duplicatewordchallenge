@@ -2,12 +2,17 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../../src/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../../src/lib/firebase';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { colors, spacing, typography } from '../../src/theme/colors';
+import { useDispatch } from 'react-redux';
+import { setProfile, setUser } from '../../src/store/slices/authSlice';
+import { setSubscriptionData } from '../../src/store/slices/subscriptionSlice';
 
 export default function LoginScreen() {
+  const dispatch = useDispatch();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,7 +28,51 @@ export default function LoginScreen() {
     setError('');
 
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const user = userCredential.user;
+
+      dispatch(
+        setUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          emailVerified: user.emailVerified,
+        })
+      );
+
+      const profileDoc = await getDoc(doc(db, 'profiles', user.uid));
+      if (profileDoc.exists()) {
+        const profileData = profileDoc.data();
+
+        dispatch(
+          setProfile({
+            id: user.uid,
+            display_name: profileData.displayName,
+            subscription_status: profileData.subscriptionStatus,
+            subscription_provider: profileData.subscriptionProvider,
+            trial_starts_at: profileData.trialStartsAt,
+            trial_ends_at: profileData.trialEndsAt,
+            current_period_end: profileData.currentPeriodEnd,
+            games_played: profileData.gamesPlayed || 0,
+            games_won: profileData.gamesWon || 0,
+            total_score: profileData.totalScore || 0,
+            highest_word_score: profileData.highestWordScore || 0,
+            created_at: profileData.createdAt,
+            updated_at: profileData.updatedAt,
+          })
+        );
+
+        dispatch(
+          setSubscriptionData({
+            status: profileData.subscriptionStatus,
+            provider: profileData.subscriptionProvider || null,
+            trialEndsAt: profileData.trialEndsAt || null,
+            currentPeriodEnd: profileData.currentPeriodEnd || null,
+          })
+        );
+      }
+
       router.replace('/(tabs)');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
