@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { KeyRound, User as UserIcon, Users } from 'lucide-react-native';
+import { User as UserIcon, Users, KeyRound } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -15,12 +15,18 @@ export default function HomeScreen() {
   const subscription = useSelector((state: RootState) => state.subscription);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(false);
+  const [presenceReady, setPresenceReady] = useState(false);
 
   useEffect(() => {
     loadGames();
 
     if (profile?.id && profile?.display_name) {
-      presenceService.setUserOnline(profile.id, profile.display_name);
+      presenceService.setUserOnline(profile.id, profile.display_name)
+        .then(() => setPresenceReady(true))
+        .catch((error) => {
+          console.error('Failed to set presence:', error);
+          setPresenceReady(true);
+        });
 
       return () => {
         presenceService.setUserOffline(profile.id);

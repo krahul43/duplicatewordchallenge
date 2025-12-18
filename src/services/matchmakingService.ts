@@ -1,21 +1,21 @@
 import {
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    onSnapshot,
-    orderBy,
-    query,
-    setDoc,
-    Unsubscribe,
-    updateDoc,
-    where,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  limit,
+  orderBy,
+  onSnapshot,
+  updateDoc,
+  deleteDoc,
+  Unsubscribe,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { gameService } from './gameService';
 import { presenceService } from './presenceService';
+import { gameService } from './gameService';
 
 export interface MatchmakingRequest {
   userId: string;

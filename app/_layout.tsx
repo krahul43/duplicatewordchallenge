@@ -1,13 +1,13 @@
-import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { onAuthStateChanged } from 'firebase/auth';
-import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { store, persistor } from '../src/store';
 import { auth } from '../src/lib/firebase';
-import { persistor, store } from '../src/store';
 
 function RootNavigator() {
   const [authReady, setAuthReady] = useState(false);

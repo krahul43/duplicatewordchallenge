@@ -11,15 +11,18 @@ import {
   setDoc,
   Unsubscribe,
   updateDoc,
-  where
+  where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Game, GameSummary, Round, Tile, TimerDuration } from '../types/game';
-import { drawTiles, flattenBoard, generateTileBag, initializeBoard, unflattenBoard } from '../utils/gameLogic';
-
-function calculateScore(tiles: Tile[]): number {
-  return tiles.reduce((sum, tile) => sum + tile.points, 0);
-}
+import { Game, GameSummary, TimerDuration } from '../types/game';
+import {
+  calculateFinalScores,
+  drawTiles,
+  flattenBoard,
+  generateTileBag,
+  initializeBoard,
+  unflattenBoard,
+} from '../utils/gameLogic';
 
 export const gameService = {
   async createGame(playerId: string, isPrivate: boolean, timerDuration: TimerDuration = 180): Promise<string> {
@@ -27,8 +30,14 @@ export const gameService = {
     const board = initializeBoard();
     const tileBag = generateTileBag();
 
-    const { tiles: sharedRack, remainingBag } = drawTiles(tileBag, 7);
+    const { tiles: player1Rack, remainingBag: bagAfterPlayer1 } = drawTiles(tileBag, 7);
+    const { tiles: player2Rack, remainingBag } = drawTiles(bagAfterPlayer1, 7);
     const joinCode = isPrivate ? generateJoinCode() : null;
+
+    console.log('Creating game with racks:');
+    console.log('Player 1 Rack:', player1Rack, 'Length:', player1Rack.length);
+    console.log('Player 2 Rack:', player2Rack, 'Length:', player2Rack.length);
+    console.log('Tile Bag Remaining:', remainingBag.length);
 
     const gameData: any = {
       id: gameRef.id,
@@ -36,16 +45,16 @@ export const gameService = {
       player2_id: null,
       status: 'waiting',
       board: flattenBoard(board),
-      current_round: 0,
-      shared_rack: sharedRack,
       tile_bag: remainingBag,
-      round_duration_seconds: timerDuration,
+      turn_duration_seconds: timerDuration,
+      player1_rack: player1Rack,
+      player2_rack: player2Rack,
       player1_score: 0,
       player2_score: 0,
       player1_moves_count: 0,
       player2_moves_count: 0,
-      player1_submitted: false,
-      player2_submitted: false,
+      player1_consecutive_passes: 0,
+      player2_consecutive_passes: 0,
       pause_status: 'none',
       is_private: isPrivate,
       dictionary: 'en',
@@ -57,7 +66,14 @@ export const gameService = {
       gameData.join_code = joinCode;
     }
 
+    console.log('Saving game data to Firebase:', {
+      ...gameData,
+      board: '[BOARD]',
+      tile_bag: `[${remainingBag.length} tiles]`,
+    });
+
     await setDoc(gameRef, gameData);
+    console.log('Game created successfully with ID:', gameRef.id);
     return gameRef.id;
   },
 
@@ -70,16 +86,17 @@ export const gameService = {
     }
 
     const gameData = gameSnap.data();
-    const roundDuration = gameData.round_duration_seconds || 180;
-    const timerEnd = new Date(Date.now() + roundDuration * 1000).toISOString();
+    const turnDuration = gameData.turn_duration_seconds || 180;
+    const timerEnd = new Date(Date.now() + turnDuration * 1000).toISOString();
+
+    const startingPlayer = Math.random() < 0.5 ? gameData.player1_id : playerId;
 
     await updateDoc(gameRef, {
       player2_id: playerId,
       status: 'playing',
+      current_turn_player_id: startingPlayer,
       timer_ends_at: timerEnd,
-      current_round: 1,
-      player1_submitted: false,
-      player2_submitted: false,
+      game_started_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
   },
@@ -160,6 +177,14 @@ export const gameService = {
     return onSnapshot(gameRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
+
+        console.log('📥 Game data received from Firebase:');
+        console.log('- Status:', data.status);
+        console.log('- Player1 Rack:', data.player1_rack);
+        console.log('- Player2 Rack:', data.player2_rack);
+        console.log('- Has old shared_rack?:', !!(data as any).shared_rack);
+        console.log('- Current turn player:', data.current_turn_player_id);
+
         const game = {
           id: snapshot.id,
           ...data,
@@ -170,13 +195,13 @@ export const gameService = {
     });
   },
 
-  async submitWord(
+  async submitMove(
     gameId: string,
     playerId: string,
     word: string,
-    tiles: Tile[],
+    score: number,
     placements: { row: number; col: number; letter: string; points: number }[]
-  ): Promise<{ success: boolean; score: number; roundComplete?: boolean; isWinner?: boolean }> {
+  ): Promise<{ success: boolean }> {
     const gameRef = doc(db, 'games', gameId);
     const gameSnap = await getDoc(gameRef);
 
@@ -191,128 +216,154 @@ export const gameService = {
       board: unflattenBoard(data.board),
     } as Game;
 
-    const isPlayer1 = game.player1_id === playerId;
-
-    if ((isPlayer1 && game.player1_submitted) || (!isPlayer1 && game.player2_submitted)) {
-      throw new Error('Already submitted for this round');
+    if (game.current_turn_player_id !== playerId) {
+      throw new Error('Not your turn');
     }
 
-    const { calculateTotalScore } = await import('../utils/gameLogic');
-    const score = calculateTotalScore(placements, game.board);
+    const isPlayer1 = game.player1_id === playerId;
+
+    let newBoard = game.board.map(row => row.map(cell => ({ ...cell })));
+
+    for (const tile of placements) {
+      newBoard[tile.row][tile.col] = {
+        ...newBoard[tile.row][tile.col],
+        letter: tile.letter,
+        locked: true,
+      };
+    }
+
+    const tilesUsed = placements.length;
+    const currentRack = isPlayer1 ? game.player1_rack : game.player2_rack;
+    const usedTiles = placements.map(p => ({ letter: p.letter, points: p.points }));
+
+    const newRack = currentRack.filter(tile => {
+      const usedIndex = usedTiles.findIndex(used => used.letter === tile.letter && used.points === tile.points);
+      if (usedIndex !== -1) {
+        usedTiles.splice(usedIndex, 1);
+        return false;
+      }
+      return true;
+    });
+
+    const { tiles: drawnTiles, remainingBag } = drawTiles(game.tile_bag, Math.min(tilesUsed, game.tile_bag.length));
+    const updatedRack = [...newRack, ...drawnTiles];
+
+    const newScore = (isPlayer1 ? game.player1_score : game.player2_score) + score;
+    const nextPlayer = isPlayer1 ? game.player2_id : game.player1_id;
 
     const updateData: any = {
+      board: flattenBoard(newBoard),
+      tile_bag: remainingBag,
+      current_turn_player_id: nextPlayer,
+      timer_ends_at: new Date(Date.now() + game.turn_duration_seconds * 1000).toISOString(),
       updated_at: new Date().toISOString(),
     };
 
     if (isPlayer1) {
-      updateData.player1_submitted = true;
-      updateData.player1_current_word = word;
-      updateData.player1_current_score = score;
-      updateData.player1_current_tiles = placements;
+      updateData.player1_rack = updatedRack;
+      updateData.player1_score = newScore;
+      updateData.player1_moves_count = game.player1_moves_count + 1;
+      updateData.player1_consecutive_passes = 0;
+
+      if (!game.player1_highest_score || score > game.player1_highest_score) {
+        updateData.player1_highest_word = word;
+        updateData.player1_highest_score = score;
+      }
     } else {
-      updateData.player2_submitted = true;
-      updateData.player2_current_word = word;
-      updateData.player2_current_score = score;
-      updateData.player2_current_tiles = placements;
-    }
+      updateData.player2_rack = updatedRack;
+      updateData.player2_score = newScore;
+      updateData.player2_moves_count = game.player2_moves_count + 1;
+      updateData.player2_consecutive_passes = 0;
 
-    const bothSubmitted = (isPlayer1 ? game.player2_submitted : game.player1_submitted) && true;
-
-    if (bothSubmitted) {
-      const result = await this.completeRound(gameId, game, updateData, isPlayer1);
-      return { success: true, score, roundComplete: true, isWinner: result.isWinner };
-    }
-
-    await updateDoc(gameRef, updateData);
-    return { success: true, score, roundComplete: false };
-  },
-
-  async completeRound(
-    gameId: string,
-    game: Game,
-    existingUpdates: any,
-    currentIsPlayer1: boolean
-  ): Promise<{ isWinner: boolean }> {
-    const player1Score = currentIsPlayer1 ? existingUpdates.player1_current_score : game.player1_current_score;
-    const player2Score = currentIsPlayer1 ? game.player2_current_score : existingUpdates.player2_current_score;
-    const player1Word = currentIsPlayer1 ? existingUpdates.player1_current_word : game.player1_current_word;
-    const player2Word = currentIsPlayer1 ? game.player2_current_word : existingUpdates.player2_current_word;
-    const player1Tiles = currentIsPlayer1 ? existingUpdates.player1_current_tiles : game.player1_current_tiles;
-    const player2Tiles = currentIsPlayer1 ? game.player2_current_tiles : existingUpdates.player2_current_tiles;
-
-    const player1Won = (player1Score || 0) > (player2Score || 0);
-    const roundWinnerId = player1Won ? game.player1_id : game.player2_id;
-    const winningWord = player1Won ? player1Word : player2Word;
-    const winningScore = player1Won ? player1Score : player2Score;
-    const winningTiles = player1Won ? player1Tiles : player2Tiles;
-
-    let newBoard = game.board.map(row => row.map(cell => ({ ...cell })));
-
-    if (winningTiles && winningTiles.length > 0) {
-      for (const tile of winningTiles) {
-        newBoard[tile.row][tile.col] = {
-          ...newBoard[tile.row][tile.col],
-          letter: tile.letter,
-          locked: true,
-        };
+      if (!game.player2_highest_score || score > game.player2_highest_score) {
+        updateData.player2_highest_word = word;
+        updateData.player2_highest_score = score;
       }
     }
 
-    const { tiles: newSharedRack, remainingBag } = drawTiles(game.tile_bag, 7);
+    if (updatedRack.length === 0 && remainingBag.length === 0) {
+      await this.endGame(gameId, game, updateData, playerId);
+    } else {
+      await updateDoc(gameRef, updateData);
+    }
 
-    const newRoundDuration = game.round_duration_seconds;
-    const timerEnd = new Date(Date.now() + newRoundDuration * 1000).toISOString();
+    return { success: true };
+  },
+
+  async passTurn(gameId: string, playerId: string): Promise<void> {
+    const gameRef = doc(db, 'games', gameId);
+    const gameSnap = await getDoc(gameRef);
+
+    if (!gameSnap.exists()) {
+      throw new Error('Game not found');
+    }
+
+    const data = gameSnap.data();
+    const game = {
+      id: gameSnap.id,
+      ...data,
+      board: unflattenBoard(data.board),
+    } as Game;
+
+    if (game.current_turn_player_id !== playerId) {
+      throw new Error('Not your turn');
+    }
+
+    const isPlayer1 = game.player1_id === playerId;
+    const nextPlayer = isPlayer1 ? game.player2_id : game.player1_id;
 
     const updateData: any = {
-      ...existingUpdates,
-      board: flattenBoard(newBoard),
-      shared_rack: newSharedRack,
-      tile_bag: remainingBag,
-      player1_score: game.player1_score + (player1Score || 0),
-      player2_score: game.player2_score + (player2Score || 0),
-      player1_moves_count: game.player1_moves_count + 1,
-      player2_moves_count: game.player2_moves_count + 1,
-      player1_submitted: false,
-      player2_submitted: false,
-      current_round: game.current_round + 1,
-      timer_ends_at: timerEnd,
-      player1_current_word: null,
-      player2_current_word: null,
-      player1_current_score: null,
-      player2_current_score: null,
-      player1_current_tiles: null,
-      player2_current_tiles: null,
+      current_turn_player_id: nextPlayer,
+      timer_ends_at: new Date(Date.now() + game.turn_duration_seconds * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
-    if (roundWinnerId) {
-      updateData.round_winner_id = roundWinnerId;
-    }
-    if (winningWord) {
-      updateData.round_winner_word = winningWord;
-    }
-    if (winningScore !== null && winningScore !== undefined) {
-      updateData.round_winner_score = winningScore;
+    if (isPlayer1) {
+      updateData.player1_consecutive_passes = game.player1_consecutive_passes + 1;
+    } else {
+      updateData.player2_consecutive_passes = game.player2_consecutive_passes + 1;
     }
 
-    if (player1Word && player1Score && (!game.player1_highest_score || player1Score > game.player1_highest_score)) {
-      updateData.player1_highest_word = player1Word;
-      updateData.player1_highest_score = player1Score;
-    }
+    const player1Passes = isPlayer1 ? updateData.player1_consecutive_passes : game.player1_consecutive_passes;
+    const player2Passes = isPlayer1 ? game.player2_consecutive_passes : updateData.player2_consecutive_passes;
 
-    if (player2Word && player2Score && (!game.player2_highest_score || player2Score > game.player2_highest_score)) {
-      updateData.player2_highest_word = player2Word;
-      updateData.player2_highest_score = player2Score;
+    if (player1Passes >= 2 && player2Passes >= 2) {
+      await this.endGame(gameId, game, updateData, undefined);
+    } else {
+      await updateDoc(gameRef, updateData);
     }
+  },
 
-    if (remainingBag.length === 0) {
-      updateData.status = 'finished';
-      updateData.winner_id = updateData.player1_score > updateData.player2_score ? game.player1_id : game.player2_id;
-    }
-
+  async endGame(gameId: string, game: Game, additionalUpdates: any, playerWhoFinishedId?: string): Promise<void> {
     const gameRef = doc(db, 'games', gameId);
-    await updateDoc(gameRef, updateData);
 
-    return { isWinner: currentIsPlayer1 === player1Won };
+    const player1Rack = additionalUpdates.player1_rack || game.player1_rack;
+    const player2Rack = additionalUpdates.player2_rack || game.player2_rack;
+    const player1Score = additionalUpdates.player1_score || game.player1_score;
+    const player2Score = additionalUpdates.player2_score || game.player2_score;
+
+    const finalScores = calculateFinalScores(
+      player1Score,
+      player2Score,
+      player1Rack,
+      player2Rack,
+      playerWhoFinishedId,
+      game.player1_id
+    );
+
+    const winnerId = finalScores.player1Final > finalScores.player2Final ? game.player1_id : game.player2_id;
+
+    const endData = {
+      ...additionalUpdates,
+      status: 'finished',
+      winner_id: winnerId,
+      player1_remaining_tiles: player1Rack,
+      player2_remaining_tiles: player2Rack,
+      game_ended_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await updateDoc(gameRef, endData);
   },
 
   async handleTimeExpired(gameId: string): Promise<void> {
@@ -330,32 +381,9 @@ export const gameService = {
 
     if (game.status !== 'playing') return;
 
-    const player1Score = game.player1_current_score || 0;
-    const player2Score = game.player2_current_score || 0;
-
-    if (player1Score === 0 && player2Score === 0) {
-      const { tiles: newSharedRack, remainingBag } = drawTiles(game.tile_bag, 7);
-      const timerEnd = new Date(Date.now() + game.round_duration_seconds * 1000).toISOString();
-
-      await updateDoc(gameRef, {
-        shared_rack: newSharedRack,
-        tile_bag: remainingBag,
-        player1_submitted: false,
-        player2_submitted: false,
-        player1_current_word: null,
-        player2_current_word: null,
-        player1_current_score: null,
-        player2_current_score: null,
-        player1_current_tiles: null,
-        player2_current_tiles: null,
-        current_round: game.current_round + 1,
-        timer_ends_at: timerEnd,
-        updated_at: new Date().toISOString(),
-      });
-      return;
+    if (game.current_turn_player_id) {
+      await this.passTurn(gameId, game.current_turn_player_id);
     }
-
-    await this.completeRound(gameId, game, {}, true);
   },
 
   async requestPause(gameId: string, playerId: string): Promise<void> {
@@ -394,15 +422,13 @@ export const gameService = {
     }
 
     const game = gameSnap.data() as Game;
-    const newTimerEnd = new Date(Date.now() + game.round_duration_seconds * 1000).toISOString();
+    const newTimerEnd = new Date(Date.now() + game.turn_duration_seconds * 1000).toISOString();
 
     await updateDoc(gameRef, {
       status: 'playing',
       pause_status: 'none',
       pause_requested_by: null,
       timer_ends_at: newTimerEnd,
-      player1_submitted: false,
-      player2_submitted: false,
       updated_at: new Date().toISOString(),
     });
   },
@@ -428,6 +454,7 @@ export const gameService = {
       status: 'finished',
       winner_id: winnerId,
       resigned_player_id: playerId,
+      game_ended_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
   },
@@ -439,8 +466,22 @@ export const gameService = {
       return null;
     }
 
+    const startTime = game.game_started_at || game.created_at;
+    const endTime = game.game_ended_at || game.updated_at;
     const durationMinutes = Math.round(
-      (new Date(game.updated_at).getTime() - new Date(game.created_at).getTime()) / 60000
+      (new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000
+    );
+
+    const player1RemainingTiles = game.player1_remaining_tiles || [];
+    const player2RemainingTiles = game.player2_remaining_tiles || [];
+
+    const finalScores = calculateFinalScores(
+      game.player1_score,
+      game.player2_score,
+      player1RemainingTiles,
+      player2RemainingTiles,
+      game.winner_id,
+      game.player1_id
     );
 
     return {
@@ -450,6 +491,10 @@ export const gameService = {
       player2_id: game.player2_id || '',
       player1_score: game.player1_score,
       player2_score: game.player2_score,
+      player1_final_score: finalScores.player1Final,
+      player2_final_score: finalScores.player2Final,
+      player1_remaining_tiles_penalty: finalScores.player1Penalty,
+      player2_remaining_tiles_penalty: finalScores.player2Penalty,
       player1_highest_word: game.player1_highest_word || '',
       player1_highest_score: game.player1_highest_score || 0,
       player2_highest_word: game.player2_highest_word || '',
@@ -460,24 +505,6 @@ export const gameService = {
       duration_minutes: durationMinutes,
       resigned: !!game.resigned_player_id,
     };
-  },
-
-  async getRound(gameId: string, roundNumber: number): Promise<Round | null> {
-    const roundsRef = collection(db, 'rounds');
-    const q = query(
-      roundsRef,
-      where('game_id', '==', gameId),
-      where('round_number', '==', roundNumber),
-      limit(1)
-    );
-
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      return null;
-    }
-
-    return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Round;
   },
 };
 

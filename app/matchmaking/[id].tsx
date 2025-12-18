@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import { useSelector } from 'react-redux';
 import { MatchmakingLoader } from '../../src/components/MatchmakingLoader';
 import { WaitingForFriendScreen } from '../../src/components/WaitingForFriendScreen';

@@ -474,3 +474,42 @@ export function calculateTotalScore(
 
   return totalScore;
 }
+
+export function calculateRemainingTilesValue(tiles: Tile[]): number {
+  return tiles.reduce((sum, tile) => sum + tile.points, 0);
+}
+
+export function calculateFinalScores(
+  player1Score: number,
+  player2Score: number,
+  player1RemainingTiles: Tile[],
+  player2RemainingTiles: Tile[],
+  playerWhoFinishedId?: string,
+  player1Id?: string
+): {
+  player1Final: number;
+  player2Final: number;
+  player1Penalty: number;
+  player2Penalty: number;
+} {
+  const player1RemainingValue = calculateRemainingTilesValue(player1RemainingTiles);
+  const player2RemainingValue = calculateRemainingTilesValue(player2RemainingTiles);
+
+  let player1Final = player1Score - player1RemainingValue;
+  let player2Final = player2Score - player2RemainingValue;
+
+  if (playerWhoFinishedId && player1Id) {
+    if (playerWhoFinishedId === player1Id) {
+      player1Final += player2RemainingValue;
+    } else {
+      player2Final += player1RemainingValue;
+    }
+  }
+
+  return {
+    player1Final,
+    player2Final,
+    player1Penalty: player1RemainingValue,
+    player2Penalty: player2RemainingValue
+  };
+}

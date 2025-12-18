@@ -5,9 +5,8 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { GameBoard } from '../../src/components/GameBoard';
-import { GameSummaryModal } from '../../src/components/GameSummaryModal';
+import { GameEndModal } from '../../src/components/GameEndModal';
 import { GameTimer } from '../../src/components/GameTimer';
-import { RoundResultModal } from '../../src/components/RoundResultModal';
 import { TileRack } from '../../src/components/TileRack';
 import { db } from '../../src/lib/firebase';
 import { gameService } from '../../src/services/gameService';
@@ -32,8 +31,6 @@ export default function GameScreen() {
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [validatingWord, setValidatingWord] = useState(false);
-  const [showRoundResult, setShowRoundResult] = useState(false);
-  const [roundWinner, setRoundWinner] = useState<string | null>(null);
   const [opponentProfile, setOpponentProfile] = useState<{ displayName: string; id: string } | null>(null);
 
   useEffect(() => {
@@ -63,12 +60,6 @@ export default function GameScreen() {
 
       if (game.pause_status === 'requested' && game.pause_requested_by !== profile?.id) {
         showPauseRequest();
-      }
-
-      const opponentName = opponentProfile?.displayName || 'Opponent';
-      if (game.round_winner_id && game.current_round > (currentGame?.current_round || 0) && !showRoundResult) {
-        setRoundWinner(game.round_winner_id === profile?.id ? 'You' : opponentName);
-        setTimeout(() => setShowRoundResult(true), 500);
       }
     });
 
@@ -138,20 +129,30 @@ export default function GameScreen() {
   useEffect(() => {
     if (!currentGame || !profile?.id) return;
 
-    console.log('Current Game:', {
-      status: currentGame.status,
-      shared_rack: currentGame.shared_rack,
-      rack_length: currentGame.shared_rack?.length,
-      current_round: currentGame.current_round
-    });
+    const isPlayer1 = currentGame.player1_id === profile.id;
+    const myRackData = isPlayer1 ? currentGame.player1_rack : currentGame.player2_rack;
 
-    if (currentGame.shared_rack && currentGame.shared_rack.length > 0) {
-      console.log('Setting rack:', currentGame.shared_rack);
-      dispatch(setMyRack(currentGame.shared_rack as Tile[]));
+    console.log('=== RACK DEBUG ===');
+    console.log('Game ID:', currentGame.id);
+    console.log('Status:', currentGame.status);
+    console.log('Is Player 1:', isPlayer1);
+    console.log('Player 1 Rack:', currentGame.player1_rack);
+    console.log('Player 2 Rack:', currentGame.player2_rack);
+    console.log('My Rack Data:', myRackData);
+    console.log('My Rack Length:', myRackData?.length);
+    console.log('Current Turn Player:', currentGame.current_turn_player_id);
+    console.log('Is My Turn:', currentGame.current_turn_player_id === profile.id);
+    console.log('==================');
+
+    if (myRackData && Array.isArray(myRackData) && myRackData.length > 0) {
+      console.log('✅ Setting rack with', myRackData.length, 'tiles');
+      dispatch(setMyRack(myRackData as Tile[]));
     } else {
-      console.log('No shared rack found or rack is empty');
+      console.error('❌ No valid rack found!');
+      console.error('myRackData:', myRackData);
+      console.error('Is array?', Array.isArray(myRackData));
     }
-  }, [currentGame?.shared_rack, profile?.id, currentGame?.status]);
+  }, [currentGame?.player1_rack, currentGame?.player2_rack, profile?.id, currentGame?.status]);
 
   useEffect(() => {
     if (!currentGame?.timer_ends_at) return;
@@ -192,31 +193,62 @@ export default function GameScreen() {
   }
 
   function handleTilePress(tile: Tile, index: number) {
-    if (!currentGame || hasSubmitted) return;
+    if (!currentGame || !isMyTurn) return;
     dispatch(addSelectedTile(tile));
   }
 
   function handleRemoveTile(index: number) {
-    if (!currentGame || hasSubmitted) return;
+    if (!currentGame || !isMyTurn) return;
     const newSelected = [...selectedTiles];
     newSelected.splice(index, 1);
     dispatch(setSelectedTiles(newSelected));
   }
 
   function handleShuffle() {
-    if (!currentGame || hasSubmitted) return;
+    if (!currentGame || !isMyTurn) return;
     dispatch(shuffleRack());
   }
 
   function handleClear() {
-    if (!currentGame || hasSubmitted) return;
+    if (!currentGame || !isMyTurn) return;
     dispatch(clearSelectedTiles());
     setPlacedTiles([]);
     setSelectedCell(null);
   }
 
+  async function handlePassTurn() {
+    if (!id || typeof id !== 'string' || !profile?.id || !currentGame) return;
+
+    if (!isMyTurn) {
+      Alert.alert('Not Your Turn', 'Please wait for your turn');
+      return;
+    }
+
+    Alert.alert(
+      'Pass Turn',
+      'Are you sure you want to pass your turn? You will not score any points.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pass',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await gameService.passTurn(id, profile.id);
+              dispatch(clearSelectedTiles());
+              setPlacedTiles([]);
+              setSelectedCell(null);
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to pass turn');
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function handleBoardCellPress(row: number, col: number) {
-    if (!currentGame || hasSubmitted) return;
+    if (!currentGame || !isMyTurn) return;
     if (selectedTiles.length === 0) {
       const existingTile = placedTiles.find(t => t.row === row && t.col === col);
       if (existingTile) {
@@ -312,16 +344,12 @@ export default function GameScreen() {
 
       setValidatingWord(false);
 
-      const tiles = placedTiles.map(t => ({ letter: t.letter, points: t.points }));
-      const result = await gameService.submitWord(id, profile.id, word, tiles, placedTiles);
+      const { calculateTotalScore } = await import('../../src/utils/gameLogic');
+      const score = calculateTotalScore(placedTiles, currentGame.board);
 
-      if (result.roundComplete) {
-        const winnerName = result.isWinner ? 'You' : 'Your opponent';
-        setRoundWinner(winnerName);
-        setShowRoundResult(true);
-      } else {
-        Alert.alert('Submitted!', `You scored ${result.score} points! Waiting for opponent...`);
-      }
+      await gameService.submitMove(id, profile.id, word, score, placedTiles);
+
+      Alert.alert('Success!', `You scored ${score} points!`);
 
       dispatch(clearSelectedTiles());
       setPlacedTiles([]);
@@ -413,12 +441,6 @@ export default function GameScreen() {
     }
   }
 
-  function handleNextRound() {
-    setShowRoundResult(false);
-    setRoundWinner(null);
-    loadGame();
-  }
-
   if (!currentGame) {
     return (
       <View style={styles.loading}>
@@ -428,19 +450,70 @@ export default function GameScreen() {
     );
   }
 
-  // If game is playing but no tiles yet, wait
-  if (currentGame.status === 'playing' && !currentGame.shared_rack) {
+  const isPlayer1 = currentGame.player1_id === profile?.id;
+  const myRackFromGame = isPlayer1 ? currentGame.player1_rack : currentGame.player2_rack;
+
+  // Check if this is an old game with the old schema
+  const hasOldSchema = !currentGame.player1_rack && !currentGame.player2_rack && (currentGame as any).shared_rack;
+
+  if (hasOldSchema) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#fff" />
-        <Text style={{ color: '#fff', marginTop: 16 }}>Loading tiles...</Text>
+        <Text style={{ color: '#fff', marginTop: 16, textAlign: 'center', paddingHorizontal: 20 }}>
+          This game uses an old format.{'\n'}Please start a new game.
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 20, backgroundColor: '#43A047', padding: 16, borderRadius: 8 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  const isPlayer1 = currentGame.player1_id === profile?.id;
-  const hasSubmitted = isPlayer1 ? currentGame.player1_submitted : currentGame.player2_submitted;
-  const opponentSubmitted = isPlayer1 ? currentGame.player2_submitted : currentGame.player1_submitted;
+  // If game is still waiting for player 2, show different message
+  if (currentGame.status === 'waiting' && !currentGame.player2_id) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={{ color: '#fff', marginTop: 16 }}>Waiting for opponent...</Text>
+      </View>
+    );
+  }
+
+  // If game is playing but no racks yet, wait
+  if (currentGame.status === 'playing' && (!myRackFromGame || !Array.isArray(myRackFromGame) || myRackFromGame.length === 0)) {
+    console.error('Waiting for racks to load...');
+    console.error('Player1 rack exists?', !!currentGame.player1_rack);
+    console.error('Player2 rack exists?', !!currentGame.player2_rack);
+    console.error('My rack exists?', !!myRackFromGame);
+    console.error('Full game object:', JSON.stringify(currentGame, null, 2));
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={{ color: '#fff', marginTop: 16 }}>Loading tiles...</Text>
+        <TouchableOpacity
+          style={{ marginTop: 20, backgroundColor: '#F44336', padding: 12, borderRadius: 8 }}
+          onPress={() => {
+            Alert.alert(
+              'Debug Info',
+              `Status: ${currentGame.status}\n` +
+              `Player1 Rack: ${currentGame.player1_rack ? 'exists' : 'missing'}\n` +
+              `Player2 Rack: ${currentGame.player2_rack ? 'exists' : 'missing'}\n` +
+              `Is Player1: ${isPlayer1}\n` +
+              `My Rack: ${myRackFromGame ? 'exists' : 'missing'}`
+            );
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 14 }}>Show Debug Info</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const isMyTurn = currentGame.current_turn_player_id === profile?.id;
   const opponent = opponentProfile?.displayName || 'Opponent';
   const myScore = currentGame.player1_id === profile?.id ? currentGame.player1_score : currentGame.player2_score;
   const opponentScore = currentGame.player1_id === profile?.id ? currentGame.player2_score : currentGame.player1_score;
@@ -479,9 +552,9 @@ export default function GameScreen() {
           <Text style={styles.flagText}>🇬🇧</Text>
         </View>
 
-        <View style={[styles.turnIndicator, hasSubmitted && styles.turnIndicatorOpponent]}>
+        <View style={[styles.turnIndicator, isMyTurn ? styles.turnIndicatorMyTurn : styles.turnIndicatorOpponent]}>
           <Text style={styles.turnText}>
-            {hasSubmitted ? 'Submitted ✓' : opponentSubmitted ? 'Opponent Submitted' : `Round ${currentGame.current_round}`}
+            {isMyTurn ? 'Your Turn' : `${opponent}'s Turn`}
           </Text>
         </View>
 
@@ -594,20 +667,28 @@ export default function GameScreen() {
             <Menu size={24} color="#fff" />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleShuffle} style={styles.actionButton} disabled={hasSubmitted}>
-            <Shuffle size={24} color={hasSubmitted ? "#888" : "#fff"} />
+          <TouchableOpacity onPress={handleShuffle} style={styles.actionButton} disabled={!isMyTurn}>
+            <Shuffle size={24} color={!isMyTurn ? "#888" : "#fff"} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handlePassTurn}
+            disabled={!isMyTurn || loading}
+            style={[styles.passButton, (!isMyTurn || loading) && styles.passButtonDisabled]}
+          >
+            <Text style={styles.passButtonText}>Pass</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleSubmit}
-            disabled={placedTiles.length < 2 || loading || hasSubmitted}
-            style={[styles.submitButtonNew, (placedTiles.length < 2 || loading || hasSubmitted) && styles.submitButtonDisabled]}
+            disabled={placedTiles.length < 2 || loading || !isMyTurn}
+            style={[styles.submitButtonNew, (placedTiles.length < 2 || loading || !isMyTurn) && styles.submitButtonDisabled]}
           >
-            <Text style={styles.submitButtonTextNew}>{hasSubmitted ? 'Submitted' : 'Submit'}</Text>
+            <Text style={styles.submitButtonTextNew}>Submit</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleClear} style={styles.actionButton} disabled={hasSubmitted}>
-            <X size={24} color={hasSubmitted ? "#888" : "#fff"} />
+          <TouchableOpacity onPress={handleClear} style={styles.actionButton} disabled={!isMyTurn}>
+            <X size={24} color={!isMyTurn ? "#888" : "#fff"} />
           </TouchableOpacity>
 
           <View style={styles.scoreCircle}>
@@ -617,31 +698,15 @@ export default function GameScreen() {
       </View>
       </ScrollView>
 
-      {showRoundResult && currentGame?.round_winner_id && (
-        <RoundResultModal
-          visible={showRoundResult}
-          winnerName={currentGame.round_winner_id === profile?.id ? 'You' : opponent}
-          winnerWord={currentGame.round_winner_word || ''}
-          winnerScore={currentGame.round_winner_score || 0}
-          isWinner={currentGame.round_winner_id === profile?.id}
-          onNext={() => {
-            setShowRoundResult(false);
-            setRoundWinner(null);
-          }}
-        />
-      )}
-
-      <GameSummaryModal
+      <GameEndModal
         visible={showSummary}
         summary={gameSummary}
         currentPlayerId={profile?.id || ''}
-        player1Name={isPlayer1 ? profile?.display_name || 'You' : (opponentProfile?.displayName || 'Opponent')}
-        player2Name={isPlayer1 ? (opponentProfile?.displayName || 'Opponent') : profile?.display_name || 'You'}
         onClose={() => {
           setShowSummary(false);
           router.back();
         }}
-        onPlayAgain={() => {
+        onNewGame={() => {
           setShowSummary(false);
           router.replace('/(tabs)');
         }}
@@ -995,6 +1060,27 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '700',
+  },
+  passButton: {
+    backgroundColor: '#FF9800',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  passButtonDisabled: {
+    backgroundColor: '#9E9E9E',
+    opacity: 0.6,
+  },
+  passButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  turnIndicatorMyTurn: {
+    backgroundColor: '#43A047',
   },
   scoreCircle: {
     width: 48,
