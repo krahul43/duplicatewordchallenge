@@ -1,16 +1,20 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { User as UserIcon, Users, KeyRound } from 'lucide-react-native';
+import { KeyRound, Play, Sparkles, User as UserIcon, Users, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSelector } from 'react-redux';
+import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import { gameService } from '../../src/services/gameService';
 import { matchmakingService } from '../../src/services/matchmakingService';
 import { presenceService } from '../../src/services/presenceService';
 import { RootState } from '../../src/store';
-import { colors, spacing, typography } from '../../src/theme/colors';
+import { resetGame } from '../../src/store/slices/gameSlice';
 import { Game } from '../../src/types/game';
 
+const { width } = Dimensions.get('window');
+
 export default function HomeScreen() {
+  const dispatch = useDispatch();
   const profile = useSelector((state: RootState) => state.auth.profile);
   const subscription = useSelector((state: RootState) => state.subscription);
   const [games, setGames] = useState<Game[]>([]);
@@ -39,7 +43,7 @@ export default function HomeScreen() {
 
     try {
       const playerGames = await gameService.getPlayerGames(profile.id);
-      setGames(playerGames.filter(g => g.status === 'playing'));
+      setGames(playerGames.filter(g => g.status === 'playing' || g.status === 'paused'));
     } catch (error) {
       console.error('Failed to load games:', error);
     }
@@ -83,7 +87,10 @@ export default function HomeScreen() {
     setLoading(true);
 
     try {
+      dispatch(resetGame());
+      await cleanupOldWaitingGames();
       const gameId = await gameService.createGame(profile.id, isPrivate);
+      console.log('Created new game with ID:', gameId);
       router.push(`/matchmaking/${gameId}`);
     } catch (error) {
       console.error('Failed to create game:', error);
@@ -92,136 +99,262 @@ export default function HomeScreen() {
     }
   }
 
+  async function cleanupOldWaitingGames() {
+    if (!profile?.id) return;
+
+    try {
+      const playerGames = await gameService.getPlayerGames(profile.id);
+
+      const gamesToCleanup = playerGames.filter(g =>
+        g.status === 'waiting' ||
+        g.status === 'cancelled' ||
+        (g.status === 'finished' && g.is_private && !g.player2_id)
+      );
+
+      for (const game of gamesToCleanup) {
+        await gameService.cancelWaitingGame(game.id);
+      }
+    } catch (error) {
+      console.error('Failed to cleanup old games:', error);
+    }
+  }
+
   function canPlay(): boolean {
     return subscription.status === 'trialing' || subscription.status === 'active';
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <LinearGradient
+      colors={['#eff6ff', '#f0f9ff', '#fef3c7', '#fef3c7']}
+      locations={[0, 0.3, 0.7, 1]}
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {games.length > 0 && (
           <TouchableOpacity
             style={styles.gameInProgressBanner}
             onPress={() => router.push(`/game/${games[0].id}`)}
           >
-            <Text style={styles.bannerText}>You have a game in progress play</Text>
+            <LinearGradient
+              colors={['#f59e0b', '#f97316']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.bannerGradient}
+            >
+              <Play size={20} color="#fff" fill="#fff" />
+              <Text style={styles.bannerText}>Resume Your Game</Text>
+              <Sparkles size={18} color="#fff" />
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
-        <Image style={styles.scrableimg} source={require('../../assets/images/bannerimage.png')} />
+        <View style={styles.logoContainer}>
+          <Image
+            style={styles.logo}
+            source={require('../../assets/images/logo.png')}
+            resizeMode="contain"
+          />
+        </View>
 
-        <Text style={styles.description}>
-          Play your favorite game of Scrabble with friends and family or practice against the computer in real-time. Play Scrabble online for free now!
-        </Text>
+        <View style={styles.welcomeCard}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.welcomeGradient}
+          >
+            <Sparkles size={24} color="#fff" fill="#fff" />
+            <Text style={styles.welcomeTitle}>Ready to Play?</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Challenge friends or find opponents worldwide!
+            </Text>
+          </LinearGradient>
+        </View>
 
         <View style={styles.actions}>
           <TouchableOpacity
-            style={styles.actionButton}
             onPress={handleQuickPlay}
             disabled={loading}
+            activeOpacity={0.8}
           >
-            <View style={[styles.iconWrapper, styles.pinkIcon]}>
-              <Users size={24} color={colors.surface} />
-            </View>
-            <Text style={styles.actionButtonText}>Find a Match</Text>
+            <LinearGradient
+              colors={['#ec4899', '#db2777']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.primaryButton}
+            >
+              <View style={styles.buttonIconContainer}>
+                <Users size={26} color="#fff" strokeWidth={2.5} />
+              </View>
+              <View style={styles.buttonTextContainer}>
+                <Text style={styles.buttonTitle}>Find a Match</Text>
+                <Text style={styles.buttonSubtitle}>Play with random opponent</Text>
+              </View>
+              <Zap size={20} color="rgba(255,255,255,0.8)" />
+            </LinearGradient>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionButton}
             onPress={() => createNewGame(true)}
             disabled={loading}
+            activeOpacity={0.8}
           >
-            <View style={[styles.iconWrapper, styles.yellowIcon]}>
-              <UserIcon size={24} color={colors.surface} />
-            </View>
-            <Text style={styles.actionButtonText}>Play a Friend</Text>
+            <LinearGradient
+              colors={['#3b82f6', '#2563eb']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.secondaryButton}
+            >
+              <View style={styles.buttonIconContainer}>
+                <UserIcon size={26} color="#fff" strokeWidth={2.5} />
+              </View>
+              <View style={styles.buttonTextContainer}>
+                <Text style={styles.buttonTitle}>Play a Friend</Text>
+                <Text style={styles.buttonSubtitle}>Private game with code</Text>
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionButton}
             onPress={() => router.push('/join-game')}
             disabled={loading}
+            activeOpacity={0.8}
           >
-            <View style={[styles.iconWrapper, styles.greenIcon]}>
-              <KeyRound size={24} color={colors.surface} />
-            </View>
-            <Text style={styles.actionButtonText}>Join with Code</Text>
+            <LinearGradient
+              colors={['#10b981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.secondaryButton}
+            >
+              <View style={styles.buttonIconContainer}>
+                <KeyRound size={26} color="#fff" strokeWidth={2.5} />
+              </View>
+              <View style={styles.buttonTextContainer}>
+                <Text style={styles.buttonTitle}>Join with Code</Text>
+                <Text style={styles.buttonSubtitle}>Enter friend's game code</Text>
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   content: {
-    padding: spacing.lg,
+    padding: 20,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   gameInProgressBanner: {
-    backgroundColor: '#FBD59A',
-    padding: spacing.md,
-    borderRadius: 8,
-    marginBottom: spacing.xl,
-    alignItems: 'center',
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#f59e0b',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  bannerText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '500',
-  },
-scrableimg: {
-    width: '100%',
-    height: 200,
-    resizeMode: 'contain',
-    marginBottom: spacing.xl,
-    alignSelf: 'center',
-  },  
-  description: {
-    fontSize:14,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-  },
-  actions: {
-    gap: spacing.md,
-  },
-  actionButton: {
+  bannerGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    justifyContent: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  iconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+  bannerText: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.3,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 28,
+    marginTop: 8,
+  },
+  logo: {
+    width: width * 0.97,
+    height: 180,
+  },
+  welcomeCard: {
+    marginBottom: 32,
+    borderRadius: 22,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  welcomeGradient: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  welcomeTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  welcomeSubtitle: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  actions: {
+    gap: 18,
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 20,
+    shadowColor: '#ec4899',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  buttonIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.md,
+    marginRight: 16,
   },
-  pinkIcon: {
-    backgroundColor: colors.button.pink,
-  },
-  yellowIcon: {
-    backgroundColor: colors.button.yellow,
-  },
-  greenIcon: {
-    backgroundColor: '#4CAF50',
-  },
-  actionButtonText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
+  buttonTextContainer: {
     flex: 1,
+  },
+  buttonTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  buttonSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
   },
 });
