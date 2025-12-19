@@ -1,19 +1,41 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useSelector, useDispatch } from 'react-redux';
-import { LogOut, User, Moon, Sun, Book, CreditCard } from 'lucide-react-native';
 import { signOut } from 'firebase/auth';
+import { Award, Book, Crown, LogOut, Star, Target, TrendingUp, Trophy, Zap } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import { auth } from '../../src/lib/firebase';
+import { statsService, UserStats } from '../../src/services/statsService';
 import { RootState } from '../../src/store';
 import { logout } from '../../src/store/slices/authSlice';
-import { Button } from '../../src/components/Button';
-import { colors, spacing, typography } from '../../src/theme/colors';
+import { colors } from '../../src/theme/colors';
 
 export default function SettingsScreen() {
   const dispatch = useDispatch();
+  const user = useSelector((state: RootState) => state.auth.user);
   const profile = useSelector((state: RootState) => state.auth.profile);
   const subscription = useSelector((state: RootState) => state.subscription);
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    loadStats();
+  }, [profile?.id]);
+
+  async function loadStats() {
+    if (!profile?.id) return;
+
+    setLoadingStats(true);
+    try {
+      const userStats = await statsService.getUserStats(profile.id);
+      setStats(userStats);
+    } catch (error) {
+      console.error('Failed to load stats:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  }
 
   async function handleLogout() {
     Alert.alert(
@@ -52,76 +74,165 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <User size={40} color={colors.primary} />
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.avatarContainer}>
+          <LinearGradient
+            colors={['#ffffff', '#f0f0f0']}
+            style={styles.avatar}
+          >
+            <Text style={styles.avatarText}>
+              {(profile?.display_name || 'P').charAt(0).toUpperCase()}
+            </Text>
+          </LinearGradient>
         </View>
         <Text style={styles.name}>{profile?.display_name || 'Player'}</Text>
-        <Text style={styles.email}>{profile?.id}</Text>
-      </View>
+        <Text style={styles.email}>{user?.email || 'No email'}</Text>
+      </LinearGradient>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Subscription</Text>
-        <View style={[styles.card, { borderColor: getSubscriptionColor() }]}>
-          <View style={styles.cardContent}>
-            <CreditCard size={24} color={getSubscriptionColor()} />
-            <View style={styles.cardText}>
-              <Text style={styles.cardTitle}>{getSubscriptionText()}</Text>
-              {subscription.status === 'trialing' && (
-                <Text style={styles.cardSubtitle}>
-                  Subscribe now to continue after trial
-                </Text>
-              )}
+      <View style={styles.mainContent}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription</Text>
+          <LinearGradient
+            colors={subscription.status === 'active' || subscription.status === 'trialing'
+              ? ['#10b981', '#059669']
+              : ['#ef4444', '#dc2626']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.subscriptionCard}
+          >
+            <View style={styles.subscriptionHeader}>
+              <View style={styles.subscriptionIconContainer}>
+                <Crown size={28} color="#fff" strokeWidth={2.5} />
+              </View>
+              <View style={styles.subscriptionTextContainer}>
+                <Text style={styles.subscriptionTitle}>{getSubscriptionText()}</Text>
+                {subscription.status === 'trialing' && (
+                  <Text style={styles.subscriptionSubtitle}>
+                    Subscribe now to unlock unlimited games
+                  </Text>
+                )}
+                {subscription.status === 'active' && (
+                  <Text style={styles.subscriptionSubtitle}>
+                    All premium features unlocked
+                  </Text>
+                )}
+              </View>
             </View>
-          </View>
-          <Button
-            title={subscription.status === 'active' ? 'Manage' : 'Subscribe'}
-            onPress={() => router.push('/subscription-required')}
-            variant="outline"
-          />
+            <TouchableOpacity
+              style={styles.subscriptionButton}
+              onPress={() => router.push('/subscription-required')}
+            >
+              <Text style={styles.subscriptionButtonText}>
+                {subscription.status === 'active' ? 'Manage Plan' : 'Upgrade Now'}
+              </Text>
+              <Zap size={16} color="#667eea" />
+            </TouchableOpacity>
+          </LinearGradient>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Game Settings</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Performance Stats</Text>
+          {loadingStats ? (
+            <View style={styles.statsLoading}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Loading your stats...</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.highlightStats}>
+                <View style={styles.highlightStatCard}>
+                  <LinearGradient
+                    colors={['#3b82f6', '#2563eb']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.highlightStatGradient}
+                  >
+                    <Star size={20} color="#fff" fill="#fff" />
+                    <Text style={styles.highlightStatValue}>
+                      {stats?.winRate.toFixed(0)}%
+                    </Text>
+                    <Text style={styles.highlightStatLabel}>Win Rate</Text>
+                  </LinearGradient>
+                </View>
+                <View style={styles.highlightStatCard}>
+                  <LinearGradient
+                    colors={['#8b5cf6', '#7c3aed']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.highlightStatGradient}
+                  >
+                    <Trophy size={20} color="#fff" fill="#fff" />
+                    <Text style={styles.highlightStatValue}>
+                      {Math.round(stats?.averageScore || 0)}
+                    </Text>
+                    <Text style={styles.highlightStatLabel}>Avg Score</Text>
+                  </LinearGradient>
+                </View>
+              </View>
 
-        <TouchableOpacity style={styles.option}>
-          <Book size={24} color={colors.text} />
-          <Text style={styles.optionText}>Dictionary: English</Text>
+              <View style={styles.statsGrid}>
+                <View style={styles.statCard}>
+                  <View style={[styles.statIconNew, { backgroundColor: '#dbeafe' }]}>
+                    <Target size={22} color="#3b82f6" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.statValueNew}>{stats?.gamesPlayed || 0}</Text>
+                  <Text style={styles.statLabelNew}>Games Played</Text>
+                </View>
+
+                <View style={styles.statCard}>
+                  <View style={[styles.statIconNew, { backgroundColor: '#dcfce7' }]}>
+                    <Trophy size={22} color="#10b981" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.statValueNew}>{stats?.gamesWon || 0}</Text>
+                  <Text style={styles.statLabelNew}>Victories</Text>
+                </View>
+
+                <View style={styles.statCard}>
+                  <View style={[styles.statIconNew, { backgroundColor: '#fed7aa' }]}>
+                    <TrendingUp size={22} color="#f59e0b" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.statValueNew}>{stats?.totalScore.toLocaleString() || 0}</Text>
+                  <Text style={styles.statLabelNew}>Total Points</Text>
+                </View>
+
+                <View style={styles.statCard}>
+                  <View style={[styles.statIconNew, { backgroundColor: '#fae8ff' }]}>
+                    <Award size={22} color="#a855f7" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.statValueNew}>{stats?.highestWordScore || 0}</Text>
+                  <Text style={styles.statLabelNew}>Best Word</Text>
+                </View>
+              </View>
+            </>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Game Settings</Text>
+          <TouchableOpacity style={styles.settingOption}>
+            <View style={styles.settingIconContainer}>
+              <Book size={20} color="#667eea" />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingTitle}>Dictionary</Text>
+              <Text style={styles.settingValue}>English</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <LogOut size={20} color="#ef4444" />
+          <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
+
+        <Text style={styles.version}>Version 1.0.0</Text>
       </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Stats</Text>
-        <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.games_played || 0}</Text>
-            <Text style={styles.statLabel}>Games Played</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.games_won || 0}</Text>
-            <Text style={styles.statLabel}>Games Won</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.total_score || 0}</Text>
-            <Text style={styles.statLabel}>Total Score</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.highest_word_score || 0}</Text>
-            <Text style={styles.statLabel}>Best Word</Text>
-          </View>
-        </View>
-      </View>
-
-      <Button
-        title="Sign Out"
-        onPress={handleLogout}
-        variant="outline"
-        style={styles.logoutButton}
-      />
-
-      <Text style={styles.version}>Version 1.0.0</Text>
     </ScrollView>
   );
 }
@@ -129,112 +240,257 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#f8fafc',
   },
   content: {
-    padding: spacing.lg,
+    paddingBottom: 40,
   },
   header: {
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    marginBottom: spacing.xl,
-    paddingVertical: spacing.lg,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  avatarContainer: {
+    marginBottom: 16,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.surface,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  avatarText: {
+    fontSize: 42,
+    fontWeight: '700',
+    color: '#667eea',
   },
   name: {
-    ...typography.h2,
-    color: colors.text,
-    marginBottom: spacing.xs,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 6,
   },
   email: {
-    ...typography.caption,
-    color: colors.muted,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  mainContent: {
+    paddingHorizontal: 20,
+    marginTop: -10,
   },
   section: {
-    marginBottom: spacing.xl,
+    marginTop: 28,
   },
   sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.md,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 14,
+    letterSpacing: -0.5,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.md,
-    borderWidth: 2,
+  subscriptionCard: {
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  cardContent: {
+  subscriptionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: 16,
   },
-  cardText: {
+  subscriptionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  subscriptionTextContainer: {
     flex: 1,
   },
-  cardTitle: {
-    ...typography.body,
-    color: colors.text,
+  subscriptionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  subscriptionSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  subscriptionButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  subscriptionButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#667eea',
+  },
+  highlightStats: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  highlightStatCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  highlightStatGradient: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  highlightStatValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  highlightStatLabel: {
+    fontSize: 13,
     fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  cardSubtitle: {
-    ...typography.caption,
-    color: colors.muted,
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: 12,
-    marginBottom: spacing.sm,
-  },
-  optionText: {
-    ...typography.body,
-    color: colors.text,
-    flex: 1,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: 12,
   },
-  statItem: {
+  statCard: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: 12,
+    minWidth: '47%',
+    backgroundColor: '#ffffff',
+    padding: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  statIconNew: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statValueNew: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  statLabelNew: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  statsLoading: {
+    backgroundColor: '#ffffff',
+    padding: 40,
+    borderRadius: 16,
     alignItems: 'center',
   },
-  statValue: {
-    ...typography.h2,
-    color: colors.primary,
-    marginBottom: spacing.xs,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: '#64748b',
   },
-  statLabel: {
-    ...typography.caption,
-    color: colors.muted,
-    textAlign: 'center',
+  settingOption: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  settingIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  settingTextContainer: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 2,
+  },
+  settingValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
   },
   logoutButton: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
+    marginTop: 28,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: 1.5,
+    borderColor: '#fee2e2',
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ef4444',
   },
   version: {
-    ...typography.caption,
-    color: colors.muted,
+    fontSize: 13,
+    color: '#94a3b8',
     textAlign: 'center',
-    marginTop: spacing.md,
+    marginTop: 24,
   },
 });
