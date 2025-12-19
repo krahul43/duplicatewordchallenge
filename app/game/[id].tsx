@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, Flag, Menu, Pause, Play, Shuffle, X } from 'lucide-react-native';
+import { ChevronLeft, Flag, Package, Pause, Play, Shuffle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -9,6 +9,7 @@ import { GameBoard } from '../../src/components/GameBoard';
 import { GameEndModal } from '../../src/components/GameEndModal';
 import { GameTimer } from '../../src/components/GameTimer';
 import { TileRack } from '../../src/components/TileRack';
+import { TileBagViewer } from '../../src/components/TileBagViewer';
 import { gameService } from '../../src/services/gameService';
 import { presenceService } from '../../src/services/presenceService';
 import { RootState } from '../../src/store';
@@ -33,6 +34,7 @@ export default function GameScreen() {
   const [validatingWord, setValidatingWord] = useState(false);
   const [opponentProfile, setOpponentProfile] = useState<{ displayName: string; id: string } | null>(null);
   const [pauseRequestShown, setPauseRequestShown] = useState(false);
+  const [showTileBag, setShowTileBag] = useState(false);
 
   useEffect(() => {
     if (!id || typeof id !== 'string' || !profile?.id) return;
@@ -679,8 +681,11 @@ export default function GameScreen() {
         />
 
         <View style={styles.actionsBar}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Menu size={24} color="#fff" />
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setShowTileBag(true)}
+          >
+            <Package size={24} color="#fff" />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={handleShuffle} style={styles.actionButton} disabled={!isMyTurn}>
@@ -726,6 +731,12 @@ export default function GameScreen() {
           setShowSummary(false);
           router.replace('/(tabs)');
         }}
+      />
+
+      <TileBagViewer
+        visible={showTileBag}
+        onClose={() => setShowTileBag(false)}
+        tileBag={currentGame?.tile_bag || []}
       />
 
       {validatingWord && (

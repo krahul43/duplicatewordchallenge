@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BoardCell as BoardCellType } from '../types/game';
 import { colors } from '../theme/colors';
 
@@ -20,30 +21,72 @@ const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
 const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
 export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false }: Props) {
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((event) => {
+      scale.value = Math.max(1, Math.min(savedScale.value * event.scale, 3));
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+    });
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      if (scale.value > 1) {
+        const maxTranslate = ((scale.value - 1) * MAX_SIZE) / 2;
+        translateX.value = Math.max(-maxTranslate, Math.min(maxTranslate, savedTranslateX.value + event.translationX));
+        translateY.value = Math.max(-maxTranslate, Math.min(maxTranslate, savedTranslateY.value + event.translationY));
+      }
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
   return (
-    <View style={styles.container}>
-      {board.map((row, rowIndex) => (
-        <View key={rowIndex} style={styles.row}>
-          {row.map((cell, colIndex) => {
-            const placedTile = placedTiles.find(t => t.row === rowIndex && t.col === colIndex);
-            const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
-            const canPlace = hasSelectedTiles && !cell.locked && !placedTile;
-            return (
-              <BoardCell
-                key={`${rowIndex}-${colIndex}`}
-                cell={cell}
-                rowIndex={rowIndex}
-                colIndex={colIndex}
-                onPress={onCellPress}
-                placedTile={placedTile}
-                isSelected={isSelected}
-                canPlace={canPlace}
-              />
-            );
-          })}
+    <GestureDetector gesture={composedGesture}>
+      <Animated.View style={[styles.boardWrapper, animatedStyle]}>
+        <View style={styles.container}>
+          {board.map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.row}>
+              {row.map((cell, colIndex) => {
+                const placedTile = placedTiles.find(t => t.row === rowIndex && t.col === colIndex);
+                const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
+                const canPlace = hasSelectedTiles && !cell.locked && !placedTile;
+                return (
+                  <BoardCell
+                    key={`${rowIndex}-${colIndex}`}
+                    cell={cell}
+                    rowIndex={rowIndex}
+                    colIndex={colIndex}
+                    onPress={onCellPress}
+                    placedTile={placedTile}
+                    isSelected={isSelected}
+                    canPlace={canPlace}
+                  />
+                );
+              })}
+            </View>
+          ))}
         </View>
-      ))}
-    </View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -89,14 +132,14 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
     >
       <Animated.View style={[cellStyle, animatedStyle]}>
         {placedTile ? (
-          <>
+          <View style={styles.tileContainer}>
             <Text style={styles.letter}>{placedTile.letter}</Text>
             <Text style={styles.points}>{placedTile.points}</Text>
-          </>
+          </View>
         ) : cell.letter ? (
-          <>
+          <View style={styles.tileContainer}>
             <Text style={styles.letter}>{cell.letter}</Text>
-          </>
+          </View>
         ) : (
           <Text style={styles.label}>{getCellLabel(cell.type)}</Text>
         )}
@@ -107,7 +150,14 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
 
 function getCellBackgroundStyle(cell: BoardCellType) {
   if (cell.locked) {
-    return { backgroundColor: '#90EE90' };
+    return {
+      backgroundColor: '#F5E6D3',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2,
+      elevation: 3,
+    };
   }
 
   switch (cell.type) {
@@ -138,15 +188,18 @@ function getCellLabel(type: string): string {
 }
 
 const styles = StyleSheet.create({
+  boardWrapper: {
+    alignSelf: 'center',
+  },
   container: {
     backgroundColor: '#fff',
-    padding: 2,
-    borderRadius: 6,
+    padding: 3,
+    borderRadius: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   row: {
     flexDirection: 'row',
@@ -157,7 +210,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 0.5,
-    borderColor: '#ccc',
+    borderColor: '#999',
   },
   selectedCell: {
     borderWidth: 2,
@@ -173,22 +226,35 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     opacity: 0.7,
   },
+  tileContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
   letter: {
-    fontSize: Math.max(12, CELL_SIZE * 0.5),
-    fontWeight: '700',
-    color: '#2C5F2D',
+    fontSize: Math.max(14, CELL_SIZE * 0.55),
+    fontWeight: '800',
+    color: '#2C3E50',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   points: {
-    fontSize: Math.max(6, CELL_SIZE * 0.2),
+    fontSize: Math.max(7, CELL_SIZE * 0.22),
     fontWeight: '700',
-    color: '#2C5F2D',
+    color: '#2C3E50',
     position: 'absolute',
-    bottom: 1,
-    right: 2,
+    bottom: 2,
+    right: 3,
   },
   label: {
-    fontSize: Math.max(7, CELL_SIZE * 0.25),
+    fontSize: Math.max(7, CELL_SIZE * 0.26),
     fontWeight: '700',
     color: '#fff',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
