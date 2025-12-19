@@ -44,36 +44,40 @@ export default function LoginScreen() {
         })
       );
 
-      const profileDoc = await getDoc(doc(db, 'profiles', user.uid));
-      if (profileDoc.exists()) {
-        const profileData = profileDoc.data();
+      try {
+        const profileDoc = await getDoc(doc(db, 'profiles', user.uid));
+        if (profileDoc.exists()) {
+          const profileData = profileDoc.data();
 
-        dispatch(
-          setProfile({
-            id: user.uid,
-            display_name: profileData.displayName,
-            subscription_status: profileData.subscriptionStatus,
-            subscription_provider: profileData.subscriptionProvider,
-            trial_starts_at: profileData.trialStartsAt,
-            trial_ends_at: profileData.trialEndsAt,
-            current_period_end: profileData.currentPeriodEnd,
-            games_played: profileData.gamesPlayed || 0,
-            games_won: profileData.gamesWon || 0,
-            total_score: profileData.totalScore || 0,
-            highest_word_score: profileData.highestWordScore || 0,
-            created_at: profileData.createdAt,
-            updated_at: profileData.updatedAt,
-          })
-        );
+          dispatch(
+            setProfile({
+              id: user.uid,
+              display_name: profileData.displayName,
+              subscription_status: profileData.subscriptionStatus,
+              subscription_provider: profileData.subscriptionProvider,
+              trial_starts_at: profileData.trialStartsAt,
+              trial_ends_at: profileData.trialEndsAt,
+              current_period_end: profileData.currentPeriodEnd,
+              games_played: profileData.gamesPlayed || 0,
+              games_won: profileData.gamesWon || 0,
+              total_score: profileData.totalScore || 0,
+              highest_word_score: profileData.highestWordScore || 0,
+              created_at: profileData.createdAt,
+              updated_at: profileData.updatedAt,
+            })
+          );
 
-        dispatch(
-          setSubscriptionData({
-            status: profileData.subscriptionStatus,
-            provider: profileData.subscriptionProvider || null,
-            trialEndsAt: profileData.trialEndsAt || null,
-            currentPeriodEnd: profileData.currentPeriodEnd || null,
-          })
-        );
+          dispatch(
+            setSubscriptionData({
+              status: profileData.subscriptionStatus,
+              provider: profileData.subscriptionProvider || null,
+              trialEndsAt: profileData.trialEndsAt || null,
+              currentPeriodEnd: profileData.currentPeriodEnd || null,
+            })
+          );
+        }
+      } catch (profileError) {
+        console.error('Error loading profile:', profileError);
       }
 
       router.replace('/(tabs)');

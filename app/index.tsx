@@ -43,49 +43,54 @@ export default function Index() {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        dispatch(
-          setUser({
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            emailVerified: user.emailVerified,
-          })
-        );
-
-        const profileDoc = await getDoc(doc(db, 'profiles', user.uid));
-        if (profileDoc.exists()) {
-          const profileData = profileDoc.data();
-
+        try {
           dispatch(
-            setProfile({
-              id: user.uid,
-              display_name: profileData.displayName,
-              subscription_status: profileData.subscriptionStatus,
-              subscription_provider: profileData.subscriptionProvider,
-              trial_starts_at: profileData.trialStartsAt,
-              trial_ends_at: profileData.trialEndsAt,
-              current_period_end: profileData.currentPeriodEnd,
-              games_played: profileData.gamesPlayed || 0,
-              games_won: profileData.gamesWon || 0,
-              total_score: profileData.totalScore || 0,
-              highest_word_score: profileData.highestWordScore || 0,
-              created_at: profileData.createdAt,
-              updated_at: profileData.updatedAt,
+            setUser({
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+              emailVerified: user.emailVerified,
             })
           );
 
-          dispatch(
-            setSubscriptionData({
-              status: profileData.subscriptionStatus,
-              provider: profileData.subscriptionProvider || null,
-              trialEndsAt: profileData.trialEndsAt || null,
-              currentPeriodEnd: profileData.currentPeriodEnd || null,
-            })
-          );
+          const profileDoc = await getDoc(doc(db, 'profiles', user.uid));
+          if (profileDoc.exists()) {
+            const profileData = profileDoc.data();
+
+            dispatch(
+              setProfile({
+                id: user.uid,
+                display_name: profileData.displayName,
+                subscription_status: profileData.subscriptionStatus,
+                subscription_provider: profileData.subscriptionProvider,
+                trial_starts_at: profileData.trialStartsAt,
+                trial_ends_at: profileData.trialEndsAt,
+                current_period_end: profileData.currentPeriodEnd,
+                games_played: profileData.gamesPlayed || 0,
+                games_won: profileData.gamesWon || 0,
+                total_score: profileData.totalScore || 0,
+                highest_word_score: profileData.highestWordScore || 0,
+                created_at: profileData.createdAt,
+                updated_at: profileData.updatedAt,
+              })
+            );
+
+            dispatch(
+              setSubscriptionData({
+                status: profileData.subscriptionStatus,
+                provider: profileData.subscriptionProvider || null,
+                trialEndsAt: profileData.trialEndsAt || null,
+                currentPeriodEnd: profileData.currentPeriodEnd || null,
+              })
+            );
+          }
+
+          router.replace('/(tabs)');
+        } catch (error) {
+          console.error('Error loading profile:', error);
+          router.replace('/(auth)/login');
         }
-
-        router.replace('/(tabs)');
       } else {
         router.replace('/(auth)/login');
       }
@@ -100,11 +105,11 @@ export default function Index() {
         colors={['#667eea', '#764ba2']}
         style={styles.splashContainer}
       >
-     <Image
-  source={require('../assets/images/splashImage.png')}
-  style={styles.fullScreenImage}
-  resizeMode="cover"
-/>
+        <Image
+          source={require('../assets/images/splashImage.png')}
+          style={styles.fullScreenImage}
+          resizeMode="cover"
+        />
       </LinearGradient>
     );
   }
@@ -125,7 +130,7 @@ export default function Index() {
 
 
 const styles = StyleSheet.create({
-  splashContainer: {
+   splashContainer: {
     flex: 1,
   },
   loadingContainer: {

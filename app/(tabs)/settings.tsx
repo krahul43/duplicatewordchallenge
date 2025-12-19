@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { auth } from '../../src/lib/firebase';
+import { presenceService } from '../../src/services/presenceService';
 import { statsService, UserStats } from '../../src/services/statsService';
 import { RootState } from '../../src/store';
 import { logout } from '../../src/store/slices/authSlice';
@@ -20,6 +21,10 @@ export default function SettingsScreen() {
   const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
+    if (!profile?.id) {
+      setLoadingStats(false);
+      return;
+    }
     loadStats();
   }, [profile?.id]);
 
@@ -47,6 +52,13 @@ export default function SettingsScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            if (profile?.id) {
+              try {
+                await presenceService.setUserOffline(profile.id);
+              } catch (error) {
+                console.error('Error setting offline status:', error);
+              }
+            }
             await signOut(auth);
             dispatch(logout());
             router.replace('/(auth)/login');

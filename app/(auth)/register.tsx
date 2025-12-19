@@ -67,7 +67,11 @@ export default function RegisterScreen() {
         updatedAt: new Date().toISOString(),
       };
 
-      await setDoc(doc(db, 'profiles', user.uid), profileData);
+      try {
+        await setDoc(doc(db, 'profiles', user.uid), profileData);
+      } catch (profileError) {
+        console.error('Error creating profile:', profileError);
+      }
 
       dispatch(
         setUser({

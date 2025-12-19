@@ -1,15 +1,12 @@
 import {
   collection,
-  doc,
-  setDoc,
   deleteDoc,
+  doc,
+  getDocs,
   onSnapshot,
   query,
-  where,
-  Timestamp,
-  serverTimestamp,
-  updateDoc,
-  getDocs,
+  setDoc,
+  where
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -24,80 +21,116 @@ export interface UserPresence {
 
 export const presenceService = {
   async setUserOnline(userId: string, displayName: string): Promise<void> {
-    const presenceRef = doc(db, 'presence', userId);
-    await setDoc(presenceRef, {
-      userId,
-      displayName,
-      status: 'online',
-      lastSeen: new Date().toISOString(),
-      lookingForGame: false,
-      updatedAt: new Date().toISOString(),
-    });
+    try {
+      const presenceRef = doc(db, 'presence', userId);
+      await setDoc(presenceRef, {
+        userId,
+        displayName,
+        status: 'online',
+        lastSeen: new Date().toISOString(),
+        lookingForGame: false,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error setting user online:', error);
+      throw error;
+    }
   },
 
   async setLookingForGame(userId: string, looking: boolean): Promise<void> {
-    const presenceRef = doc(db, 'presence', userId);
-    await setDoc(presenceRef, {
-      lookingForGame: looking,
-      status: looking ? 'online' : 'online',
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    try {
+      const presenceRef = doc(db, 'presence', userId);
+      await setDoc(presenceRef, {
+        lookingForGame: looking,
+        status: looking ? 'online' : 'online',
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error setting looking for game:', error);
+      throw error;
+    }
   },
 
   async setInGame(userId: string, gameId: string): Promise<void> {
-    const presenceRef = doc(db, 'presence', userId);
-    await setDoc(presenceRef, {
-      status: 'in_game',
-      currentGameId: gameId,
-      lookingForGame: false,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    try {
+      const presenceRef = doc(db, 'presence', userId);
+      await setDoc(presenceRef, {
+        status: 'in_game',
+        currentGameId: gameId,
+        lookingForGame: false,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error setting in game:', error);
+    }
   },
 
   async setUserOffline(userId: string): Promise<void> {
-    const presenceRef = doc(db, 'presence', userId);
-    await setDoc(presenceRef, {
-      status: 'offline',
-      lookingForGame: false,
-      lastSeen: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    if (!userId) return;
+
+    try {
+      const presenceRef = doc(db, 'presence', userId);
+      await setDoc(presenceRef, {
+        status: 'offline',
+        lookingForGame: false,
+        lastSeen: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (error) {
+      // Silently handle errors during logout
+    }
   },
 
   async removePresence(userId: string): Promise<void> {
-    const presenceRef = doc(db, 'presence', userId);
-    await deleteDoc(presenceRef);
+    if (!userId) return;
+
+    try {
+      const presenceRef = doc(db, 'presence', userId);
+      await deleteDoc(presenceRef);
+    } catch (error) {
+      // Silently handle errors
+    }
   },
 
   async getOnlineUsers(): Promise<UserPresence[]> {
-    const presenceRef = collection(db, 'presence');
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    try {
+      const presenceRef = collection(db, 'presence');
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-    const q = query(
-      presenceRef,
-      where('status', '==', 'online'),
-      where('updatedAt', '>', fiveMinutesAgo)
-    );
+      const q = query(
+        presenceRef,
+        where('status', '==', 'online'),
+        where('updatedAt', '>', fiveMinutesAgo)
+      );
 
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as UserPresence);
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => doc.data() as UserPresence);
+    } catch (error) {
+      console.error('Error getting online users:', error);
+      return [];
+    }
   },
 
   async getUsersLookingForGame(excludeUserId: string): Promise<UserPresence[]> {
-    const presenceRef = collection(db, 'presence');
-    const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000).toISOString();
+    try {
+      const presenceRef = collection(db, 'presence');
+      const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000).toISOString();
 
-    const q = query(
-      presenceRef,
-      where('lookingForGame', '==', true),
-      where('status', '==', 'online'),
-      where('updatedAt', '>', oneMinuteAgo)
-    );
+      const q = query(
+        presenceRef,
+        where('lookingForGame', '==', true),
+        where('status', '==', 'online'),
+        where('updatedAt', '>', oneMinuteAgo)
+      );
 
-    const snapshot = await getDocs(q);
-    return snapshot.docs
-      .map(doc => doc.data() as UserPresence)
-      .filter(presence => presence.userId !== excludeUserId);
+      const snapshot = await getDocs(q);
+      return snapshot.docs
+        .map(doc => doc.data() as UserPresence)
+        .filter(presence => presence.userId !== excludeUserId);
+    } catch (error) {
+      console.error('Error getting users looking for game:', error);
+      return [];
+    }
   },
 
   subscribeToPresence(userId: string, callback: (presence: UserPresence | null) => void) {

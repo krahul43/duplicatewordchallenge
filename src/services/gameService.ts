@@ -3,25 +3,25 @@ import {
   doc,
   getDoc,
   getDocs,
-  setDoc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
   limit,
   onSnapshot,
   or,
+  orderBy,
+  query,
+  setDoc,
   Unsubscribe,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Game, Tile, GameSummary, TimerDuration } from '../types/game';
+import { Game, GameSummary, TimerDuration } from '../types/game';
 import {
-  initializeBoard,
-  generateTileBag,
+  calculateFinalScores,
   drawTiles,
   flattenBoard,
+  generateTileBag,
+  initializeBoard,
   unflattenBoard,
-  calculateFinalScores,
 } from '../utils/gameLogic';
 
 export const gameService = {
@@ -149,26 +149,33 @@ export const gameService = {
   },
 
   async getPlayerGames(playerId: string): Promise<Game[]> {
-    const gamesRef = collection(db, 'games');
-    const q = query(
-      gamesRef,
-      or(
-        where('player1_id', '==', playerId),
-        where('player2_id', '==', playerId)
-      ),
-      orderBy('created_at', 'desc'),
-      limit(10)
-    );
+    if (!playerId) return [];
 
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        board: unflattenBoard(data.board),
-      } as Game;
-    });
+    try {
+      const gamesRef = collection(db, 'games');
+      const q = query(
+        gamesRef,
+        or(
+          where('player1_id', '==', playerId),
+          where('player2_id', '==', playerId)
+        ),
+        orderBy('created_at', 'desc'),
+        limit(10)
+      );
+
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          board: unflattenBoard(data.board),
+        } as Game;
+      });
+    } catch (error) {
+      console.error('Error getting player games:', error);
+      return [];
+    }
   },
 
   subscribeToGame(gameId: string, callback: (game: Game) => void): Unsubscribe {
@@ -506,6 +513,32 @@ export const gameService = {
       resigned: !!game.resigned_player_id,
       resigned_player_id: game.resigned_player_id,
     };
+  },
+
+  async cancelWaitingGame(gameId: string): Promise<void> {
+    const gameRef = doc(db, 'games', gameId);
+    const gameSnap = await getDoc(gameRef);
+
+    if (!gameSnap.exists()) {
+      return;
+    }
+
+    const game = gameSnap.data() as Game;
+
+    if (game.status === 'cancelled') {
+      console.log('Game already cancelled');
+      return;
+    }
+
+    if (game.status === 'playing') {
+      console.log('Game is already playing, cannot cancel');
+      return;
+    }
+
+    await updateDoc(gameRef, {
+      status: 'cancelled',
+      updated_at: new Date().toISOString(),
+    });
   },
 };
 

@@ -23,20 +23,24 @@ export default function HomeScreen() {
   const [presenceReady, setPresenceReady] = useState(false);
 
   useEffect(() => {
+    if (!profile?.id) return;
+
     loadGames();
 
-    if (profile?.id && profile?.display_name) {
+    if (profile?.display_name) {
       presenceService.setUserOnline(profile.id, profile.display_name)
         .then(() => setPresenceReady(true))
         .catch((error) => {
           console.error('Failed to set presence:', error);
           setPresenceReady(true);
         });
-
-      return () => {
-        presenceService.setUserOffline(profile.id);
-      };
     }
+
+    return () => {
+      if (profile?.id) {
+        presenceService.setUserOffline(profile.id).catch(() => {});
+      }
+    };
   }, [profile?.id]);
 
   async function loadGames() {

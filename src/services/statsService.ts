@@ -13,6 +13,17 @@ export interface UserStats {
 
 export const statsService = {
   async getUserStats(userId: string): Promise<UserStats> {
+    if (!userId) {
+      return {
+        gamesPlayed: 0,
+        gamesWon: 0,
+        totalScore: 0,
+        highestWordScore: 0,
+        winRate: 0,
+        averageScore: 0,
+      };
+    }
+
     try {
       const gamesRef = collection(db, 'games');
       const q = query(
