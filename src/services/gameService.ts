@@ -3,25 +3,25 @@ import {
   doc,
   getDoc,
   getDocs,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  orderBy,
   limit,
   onSnapshot,
   or,
-  orderBy,
-  query,
-  setDoc,
   Unsubscribe,
-  updateDoc,
-  where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Game, GameSummary, TimerDuration } from '../types/game';
+import { Game, Tile, GameSummary, TimerDuration } from '../types/game';
 import {
-  calculateFinalScores,
+  initializeBoard,
+  generateTileBag,
   drawTiles,
   flattenBoard,
-  generateTileBag,
-  initializeBoard,
   unflattenBoard,
+  calculateFinalScores,
 } from '../utils/gameLogic';
 
 export const gameService = {
@@ -504,6 +504,7 @@ export const gameService = {
       total_moves: game.player1_moves_count + game.player2_moves_count,
       duration_minutes: durationMinutes,
       resigned: !!game.resigned_player_id,
+      resigned_player_id: game.resigned_player_id,
     };
   },
 };

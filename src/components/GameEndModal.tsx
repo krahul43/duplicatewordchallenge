@@ -34,6 +34,8 @@ export function GameEndModal({ visible, summary, currentPlayerId, onClose, onNew
   const playerMoves = isPlayer1 ? summary.player1_moves_count : summary.player2_moves_count;
   const opponentMoves = isPlayer1 ? summary.player2_moves_count : summary.player1_moves_count;
 
+  const iResigned = summary.resigned_player_id === currentPlayerId;
+
   return (
     <Modal
       visible={visible}
@@ -50,7 +52,9 @@ export function GameEndModal({ visible, summary, currentPlayerId, onClose, onNew
                 {summary.resigned ? 'Game Ended' : (isWinner ? 'Victory!' : 'Game Over')}
               </Text>
               {summary.resigned && (
-                <Text style={styles.resignedText}>Opponent resigned</Text>
+                <Text style={styles.resignedText}>
+                  {iResigned ? 'You resigned' : 'Opponent resigned'}
+                </Text>
               )}
             </View>
 

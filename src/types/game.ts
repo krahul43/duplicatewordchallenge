@@ -133,4 +133,5 @@ export interface GameSummary {
   total_moves: number;
   duration_minutes: number;
   resigned: boolean;
+  resigned_player_id?: string;
 }

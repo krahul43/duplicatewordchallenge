@@ -1,14 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { doc, getDoc } from 'firebase/firestore';
 import { ChevronLeft, Flag, Menu, Pause, Play, Shuffle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../src/lib/firebase';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameEndModal } from '../../src/components/GameEndModal';
 import { GameTimer } from '../../src/components/GameTimer';
 import { TileRack } from '../../src/components/TileRack';
-import { db } from '../../src/lib/firebase';
 import { gameService } from '../../src/services/gameService';
 import { presenceService } from '../../src/services/presenceService';
 import { RootState } from '../../src/store';
@@ -32,6 +32,7 @@ export default function GameScreen() {
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [validatingWord, setValidatingWord] = useState(false);
   const [opponentProfile, setOpponentProfile] = useState<{ displayName: string; id: string } | null>(null);
+  const [pauseRequestShown, setPauseRequestShown] = useState(false);
 
   useEffect(() => {
     if (!id || typeof id !== 'string' || !profile?.id) return;
@@ -58,8 +59,13 @@ export default function GameScreen() {
         }
       }
 
-      if (game.pause_status === 'requested' && game.pause_requested_by !== profile?.id) {
+      if (game.pause_status === 'requested' && game.pause_requested_by && game.pause_requested_by !== profile?.id && !pauseRequestShown) {
+        setPauseRequestShown(true);
         showPauseRequest();
+      }
+
+      if (game.pause_status === 'none') {
+        setPauseRequestShown(false);
       }
     });
 
@@ -155,7 +161,14 @@ export default function GameScreen() {
   }, [currentGame?.player1_rack, currentGame?.player2_rack, profile?.id, currentGame?.status]);
 
   useEffect(() => {
-    if (!currentGame?.timer_ends_at) return;
+    if (!currentGame?.timer_ends_at || !profile?.id) return;
+
+    const isMyTurn = currentGame.current_turn_player_id === profile.id;
+
+    if (!isMyTurn) {
+      setTimeRemaining(0);
+      return;
+    }
 
     const interval = setInterval(() => {
       const now = new Date().getTime();
@@ -163,13 +176,13 @@ export default function GameScreen() {
       const remaining = Math.max(0, Math.floor((end - now) / 1000));
       setTimeRemaining(remaining);
 
-      if (remaining === 0) {
+      if (remaining === 0 && isMyTurn) {
         handleTimeUp();
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentGame?.timer_ends_at]);
+  }, [currentGame?.timer_ends_at, currentGame?.current_turn_player_id, profile?.id]);
 
   async function loadGame() {
     if (!id || typeof id !== 'string') return;
@@ -588,11 +601,14 @@ export default function GameScreen() {
         </View>
 
         <View style={styles.centerIcon}>
-          {currentGame.status === 'playing' && currentGame.timer_ends_at && (
-            <GameTimer seconds={timeRemaining} totalSeconds={currentGame.round_duration_seconds} />
+          {currentGame.status === 'playing' && currentGame.timer_ends_at && isMyTurn && (
+            <GameTimer seconds={timeRemaining} totalSeconds={currentGame.turn_duration_seconds} />
           )}
           {currentGame.status === 'waiting' && (
             <Text style={styles.waitingText}>Waiting...</Text>
+          )}
+          {currentGame.status === 'playing' && !isMyTurn && (
+            <Text style={styles.waitingText}>Wait...</Text>
           )}
         </View>
 
