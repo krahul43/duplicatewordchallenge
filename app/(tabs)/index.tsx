@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { KeyRound, Play, Sparkles, User as UserIcon, Users, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { gameService } from '../../src/services/gameService';
 import { matchmakingService } from '../../src/services/matchmakingService';
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const subscription = useSelector((state: RootState) => state.subscription);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [presenceReady, setPresenceReady] = useState(false);
 
   useEffect(() => {
@@ -47,6 +48,12 @@ export default function HomeScreen() {
     } catch (error) {
       console.error('Failed to load games:', error);
     }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadGames();
+    setRefreshing(false);
   }
 
   async function handleQuickPlay() {
@@ -129,7 +136,18 @@ export default function HomeScreen() {
       locations={[0, 0.3, 0.7, 1]}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#667eea"
+            colors={['#667eea']}
+          />
+        }
+      >
         {games.length > 0 && (
           <TouchableOpacity
             style={styles.gameInProgressBanner}
@@ -280,7 +298,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   logo: {
-    width: width * 0.97,
+    width: width * 0.85,
     height: 180,
   },
   welcomeCard: {

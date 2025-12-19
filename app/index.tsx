@@ -100,11 +100,11 @@ export default function Index() {
         colors={['#667eea', '#764ba2']}
         style={styles.splashContainer}
       >
-        <Image
-          source={require('../assets/images/icon.png')}
-          style={styles.splashLogo}
-          resizeMode="contain"
-        />
+     <Image
+  source={require('../assets/images/splashImage.png')}
+  style={styles.fullScreenImage}
+  resizeMode="cover"
+/>
       </LinearGradient>
     );
   }
@@ -115,9 +115,9 @@ export default function Index() {
       style={styles.loadingContainer}
     >
       <Image
-        source={require('../assets/images/icon.png')}
-        style={styles.splashLogo}
-        resizeMode="contain"
+        source={require('../assets/images/splashImage.png')}
+        style={styles.fullScreenImage}
+        resizeMode="cover"
       />
     </LinearGradient>
   );
@@ -127,16 +127,13 @@ export default function Index() {
 const styles = StyleSheet.create({
   splashContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  splashLogo: {
-    width: width * 0.8,
-    height: 250,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  fullScreenImage: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
   },
 });
