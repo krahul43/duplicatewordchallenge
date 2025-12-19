@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { store, persistor } from '../src/store';
 import { auth } from '../src/lib/firebase';
+import { persistor, store } from '../src/store';
+
+SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const [authReady, setAuthReady] = useState(false);
@@ -15,6 +18,7 @@ function RootNavigator() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAuthReady(true);
+      SplashScreen.hideAsync();
     });
 
     return unsubscribe;
@@ -28,6 +32,7 @@ function RootNavigator() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="game/[id]" />

@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../../src/lib/firebase';
-import { Input } from '../../src/components/Input';
-import { Button } from '../../src/components/Button';
-import { colors, spacing, typography } from '../../src/theme/colors';
+import React, { useState } from 'react';
+import { Dimensions, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useDispatch } from 'react-redux';
+import { Button } from '../../src/components/Button';
+import { Input } from '../../src/components/Input';
+import { auth, db } from '../../src/lib/firebase';
 import { setProfile, setUser } from '../../src/store/slices/authSlice';
 import { setSubscriptionData } from '../../src/store/slices/subscriptionSlice';
+import { colors, spacing, typography } from '../../src/theme/colors';
+
+const { width } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const dispatch = useDispatch();
@@ -82,32 +85,23 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#eff6ff', '#f0f9ff', '#fef3c7']}
+      style={styles.container}
+    >
       <KeyboardAvoidingView
         style={styles.inner}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
-            <View style={styles.logo}>
-              <View style={styles.letterBox}>
-                <Text style={styles.letter}>W</Text>
-              </View>
-              <View style={styles.letterBox}>
-                <Text style={styles.letter}>O</Text>
-              </View>
-              <View style={styles.letterBox}>
-                <Text style={styles.letter}>R</Text>
-              </View>
-              <View style={styles.letterBox}>
-                <Text style={styles.letter}>D</Text>
-              </View>
-              <View style={styles.letterBox}>
-                <Text style={styles.letter}>S</Text>
-              </View>
-            </View>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue playing</Text>
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>Welcome Back!</Text>
+            <Text style={styles.subtitle}>Sign in to continue your word adventure</Text>
           </View>
 
           <View style={styles.form}>
@@ -127,6 +121,7 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               placeholder="Enter your password"
               secureTextEntry
+              showPasswordToggle
               autoCapitalize="none"
             />
 
@@ -147,14 +142,13 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surface,
   },
   inner: {
     flex: 1,
@@ -162,48 +156,40 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: spacing.lg,
+    padding: 24,
+    paddingTop: 60,
   },
   header: {
-    marginBottom: spacing.xl,
+    marginBottom: 40,
     alignItems: 'center',
   },
   logo: {
-    flexDirection: 'row',
-    marginBottom: spacing.lg,
-  },
-  letterBox: {
-    width: 38,
-    height: 38,
-    backgroundColor: colors.tile,
-    marginHorizontal: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 4,
-    borderBottomWidth: 3,
-    borderBottomColor: colors.tileBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  letter: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.tileText,
+    width: width * 0.7,
+    height: 140,
+    marginBottom: 30,
   },
   title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.sm,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
-    ...typography.body,
-    color: colors.muted,
+    fontSize: 15,
+    color: '#64748b',
+    textAlign: 'center',
   },
   form: {
     width: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   button: {
     marginBottom: spacing.md,
@@ -213,5 +199,8 @@ const styles = StyleSheet.create({
     color: colors.error,
     textAlign: 'center',
     marginBottom: spacing.md,
+    backgroundColor: '#fee2e2',
+    padding: 12,
+    borderRadius: 8,
   },
 });
