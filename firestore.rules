@@ -31,7 +31,10 @@ service cloud.firestore {
       allow create: if isOwner(userId) &&
                       request.resource.data.keys().hasAll([
                         'displayName',
+                        'email',
                         'subscriptionStatus',
+                        'trialStartsAt',
+                        'trialEndsAt',
                         'gamesPlayed',
                         'gamesWon',
                         'totalScore',
@@ -128,9 +131,9 @@ service cloud.firestore {
     match /matchmaking/{userId} {
       allow read: if isAuthenticated();
 
-      allow create, update: if isAuthenticated() &&
-                              (request.auth.uid == userId ||
-                               (resource != null && resource.data.opponentId == request.auth.uid));
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+
+      allow update: if isAuthenticated();
 
       allow delete: if isAuthenticated() &&
                       (request.auth.uid == userId ||
