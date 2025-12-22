@@ -141,6 +141,8 @@ export interface Game {
   player2_remaining_tiles?: Tile[];
   pause_requested_by?: string;
   pause_status?: PauseRequestStatus;
+  paused_at?: string;
+  remaining_time_seconds?: number;
 }
 
 export interface GameMove {

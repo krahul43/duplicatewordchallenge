@@ -357,9 +357,22 @@ export const gameService = {
 
   async acceptPause(gameId: string): Promise<void> {
     const gameRef = doc(db, 'games', gameId);
+    const gameSnap = await getDoc(gameRef);
+
+    if (!gameSnap.exists()) {
+      throw new Error('Game not found');
+    }
+
+    const game = gameSnap.data() as Game;
+    const now = Date.now();
+    const timerEnd = game.timer_ends_at ? new Date(game.timer_ends_at).getTime() : now;
+    const remainingTime = Math.max(0, timerEnd - now);
+
     await updateDoc(gameRef, {
       status: 'paused',
       pause_status: 'accepted',
+      paused_at: new Date().toISOString(),
+      remaining_time_seconds: Math.floor(remainingTime / 1000),
       updated_at: new Date().toISOString(),
     });
   },
@@ -382,13 +395,18 @@ export const gameService = {
     }
 
     const game = gameSnap.data() as Game;
-    const newTimerEnd = new Date(Date.now() + game.turn_duration_seconds * 1000).toISOString();
+
+    // Use saved remaining time, or fallback to game duration
+    const remainingSeconds = game.remaining_time_seconds || game.game_duration_seconds || 300;
+    const newTimerEnd = new Date(Date.now() + remainingSeconds * 1000).toISOString();
 
     await updateDoc(gameRef, {
       status: 'playing',
       pause_status: 'none',
       pause_requested_by: null,
       timer_ends_at: newTimerEnd,
+      paused_at: null,
+      remaining_time_seconds: null,
       updated_at: new Date().toISOString(),
     });
   },

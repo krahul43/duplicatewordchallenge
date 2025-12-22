@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { BoardCell as BoardCellType } from '../types/game';
-import { colors } from '../theme/colors';
 
 interface Props {
   board: BoardCellType[][];
@@ -151,28 +150,29 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
 function getCellBackgroundStyle(cell: BoardCellType) {
   if (cell.locked) {
     return {
-      backgroundColor: '#F5E6D3',
+      backgroundColor: '#F9B851',
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.2,
-      shadowRadius: 2,
-      elevation: 3,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 3,
+      elevation: 4,
+      borderRadius: 6,
     };
   }
 
   switch (cell.type) {
     case 'DL':
-      return { backgroundColor: '#87CEEB' };
+      return { backgroundColor: '#87CEEB', borderRadius: 6 };
     case 'TL':
-      return { backgroundColor: '#008B8B' };
+      return { backgroundColor: '#5CB85C', borderRadius: 6 };
     case 'DW':
-      return { backgroundColor: '#FFB6C1' };
+      return { backgroundColor: '#FFB6C1', borderRadius: 6 };
     case 'TW':
-      return { backgroundColor: '#FF1493' };
+      return { backgroundColor: '#FF1493', borderRadius: 6 };
     case 'CENTER':
-      return { backgroundColor: '#FFB6C1' };
+      return { backgroundColor: '#FFB6C1', borderRadius: 6 };
     default:
-      return { backgroundColor: '#E8E8E8' };
+      return { backgroundColor: '#F5F5F5', borderRadius: 6 };
   }
 }
 
@@ -193,8 +193,8 @@ const styles = StyleSheet.create({
   },
   container: {
     backgroundColor: '#fff',
-    padding: 3,
-    borderRadius: 8,
+    padding: 4,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -203,28 +203,38 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    gap: 2,
   },
   cell: {
     width: CELL_SIZE,
     height: CELL_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 6,
+    margin: 1,
     borderWidth: 0.5,
-    borderColor: '#999',
+    borderColor: 'rgba(0,0,0,0.1)',
   },
   selectedCell: {
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#FFD700',
     backgroundColor: '#FFFACD',
+    transform: [{ scale: 1.05 }],
   },
   cellWithNewTile: {
-    backgroundColor: '#F5E6D3',
+    backgroundColor: '#F9B851',
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    elevation: 5,
+    borderRadius: 8,
   },
   cellCanPlace: {
     borderWidth: 2,
-    borderColor: '#43A047',
-    borderStyle: 'dashed',
-    opacity: 0.7,
+    borderColor: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    opacity: 0.8,
   },
   tileContainer: {
     width: '100%',
