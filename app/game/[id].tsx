@@ -1,15 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { doc, getDoc } from 'firebase/firestore';
 import { ChevronLeft, Flag, Package, Pause, Play, Shuffle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../src/lib/firebase';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameEndModal } from '../../src/components/GameEndModal';
 import { GameTimer } from '../../src/components/GameTimer';
-import { TileRack } from '../../src/components/TileRack';
 import { TileBagViewer } from '../../src/components/TileBagViewer';
+import { TileRack } from '../../src/components/TileRack';
+import { db } from '../../src/lib/firebase';
 import { gameService } from '../../src/services/gameService';
 import { presenceService } from '../../src/services/presenceService';
 import { RootState } from '../../src/store';
@@ -163,14 +163,7 @@ export default function GameScreen() {
   }, [currentGame?.player1_rack, currentGame?.player2_rack, profile?.id, currentGame?.status]);
 
   useEffect(() => {
-    if (!currentGame?.timer_ends_at || !profile?.id) return;
-
-    const isMyTurn = currentGame.current_turn_player_id === profile.id;
-
-    if (!isMyTurn) {
-      setTimeRemaining(0);
-      return;
-    }
+    if (!currentGame?.timer_ends_at || !profile?.id || currentGame.status !== 'playing') return;
 
     const interval = setInterval(() => {
       const now = new Date().getTime();
@@ -178,13 +171,13 @@ export default function GameScreen() {
       const remaining = Math.max(0, Math.floor((end - now) / 1000));
       setTimeRemaining(remaining);
 
-      if (remaining === 0 && isMyTurn) {
+      if (remaining === 0) {
         handleTimeUp();
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentGame?.timer_ends_at, currentGame?.current_turn_player_id, profile?.id]);
+  }, [currentGame?.timer_ends_at, currentGame?.status, profile?.id]);
 
   async function loadGame() {
     if (!id || typeof id !== 'string') return;
@@ -208,62 +201,31 @@ export default function GameScreen() {
   }
 
   function handleTilePress(tile: Tile, index: number) {
-    if (!currentGame || !isMyTurn) return;
+    if (!currentGame) return;
     dispatch(addSelectedTile(tile));
   }
 
   function handleRemoveTile(index: number) {
-    if (!currentGame || !isMyTurn) return;
+    if (!currentGame) return;
     const newSelected = [...selectedTiles];
     newSelected.splice(index, 1);
     dispatch(setSelectedTiles(newSelected));
   }
 
   function handleShuffle() {
-    if (!currentGame || !isMyTurn) return;
+    if (!currentGame) return;
     dispatch(shuffleRack());
   }
 
   function handleClear() {
-    if (!currentGame || !isMyTurn) return;
+    if (!currentGame) return;
     dispatch(clearSelectedTiles());
     setPlacedTiles([]);
     setSelectedCell(null);
   }
 
-  async function handlePassTurn() {
-    if (!id || typeof id !== 'string' || !profile?.id || !currentGame) return;
-
-    if (!isMyTurn) {
-      Alert.alert('Not Your Turn', 'Please wait for your turn');
-      return;
-    }
-
-    Alert.alert(
-      'Pass Turn',
-      'Are you sure you want to pass your turn? You will not score any points.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Pass',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await gameService.passTurn(id, profile.id);
-              dispatch(clearSelectedTiles());
-              setPlacedTiles([]);
-              setSelectedCell(null);
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to pass turn');
-            }
-          },
-        },
-      ]
-    );
-  }
-
   function handleBoardCellPress(row: number, col: number) {
-    if (!currentGame || !isMyTurn) return;
+    if (!currentGame) return;
     if (selectedTiles.length === 0) {
       const existingTile = placedTiles.find(t => t.row === row && t.col === col);
       if (existingTile) {
@@ -296,12 +258,7 @@ export default function GameScreen() {
     if (!currentGame || !profile?.id) return;
 
     const isPlayer1 = currentGame.player1_id === profile.id;
-    const alreadySubmitted = isPlayer1 ? currentGame.player1_submitted : currentGame.player2_submitted;
-
-    if (alreadySubmitted) {
-      Alert.alert('Already Submitted', 'You have already submitted your word for this round. Wait for your opponent or for the timer to run out.');
-      return;
-    }
+    const myBoard = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
 
     if (placedTiles.length < 2) {
       Alert.alert('Invalid Move', 'You must place at least 2 tiles on the board');
@@ -321,7 +278,7 @@ export default function GameScreen() {
       return;
     }
 
-    const boardIsEmpty = isBoardEmpty(currentGame.board);
+    const boardIsEmpty = isBoardEmpty(myBoard);
 
     if (boardIsEmpty) {
       if (!wordCoversCenter(placedTiles)) {
@@ -329,7 +286,7 @@ export default function GameScreen() {
         return;
       }
     } else {
-      if (!wordConnectsToBoard(placedTiles, currentGame.board)) {
+      if (!wordConnectsToBoard(placedTiles, myBoard)) {
         Alert.alert('Invalid Placement', 'Word must connect to existing tiles on the board');
         return;
       }
@@ -360,7 +317,7 @@ export default function GameScreen() {
       setValidatingWord(false);
 
       const { calculateTotalScore } = await import('../../src/utils/gameLogic');
-      const score = calculateTotalScore(placedTiles, currentGame.board);
+      const score = calculateTotalScore(placedTiles, myBoard);
 
       await gameService.submitMove(id, profile.id, word, score, placedTiles);
 
@@ -528,7 +485,6 @@ export default function GameScreen() {
     );
   }
 
-  const isMyTurn = currentGame.current_turn_player_id === profile?.id;
   const opponent = opponentProfile?.displayName || 'Opponent';
   const myScore = currentGame.player1_id === profile?.id ? currentGame.player1_score : currentGame.player2_score;
   const opponentScore = currentGame.player1_id === profile?.id ? currentGame.player2_score : currentGame.player1_score;
@@ -537,7 +493,8 @@ export default function GameScreen() {
     if (placedTiles.length === 0 || !currentGame) return 0;
 
     const { calculateTotalScore: calcScore } = require('../../src/utils/gameLogic');
-    return calcScore(placedTiles, currentGame.board);
+    const myBoard = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
+    return calcScore(placedTiles, myBoard);
   };
 
   const totalScore = calculatePlacedScore();
@@ -567,9 +524,9 @@ export default function GameScreen() {
           <Text style={styles.flagText}>🇬🇧</Text>
         </View>
 
-        <View style={[styles.turnIndicator, isMyTurn ? styles.turnIndicatorMyTurn : styles.turnIndicatorOpponent]}>
+        <View style={[styles.turnIndicator, styles.turnIndicatorMyTurn]}>
           <Text style={styles.turnText}>
-            {isMyTurn ? 'Your Turn' : `${opponent}'s Turn`}
+            {currentGame.status === 'playing' ? '⚡ Both Playing' : 'Game'}
           </Text>
         </View>
 
@@ -603,14 +560,11 @@ export default function GameScreen() {
         </View>
 
         <View style={styles.centerIcon}>
-          {currentGame.status === 'playing' && currentGame.timer_ends_at && isMyTurn && (
-            <GameTimer seconds={timeRemaining} totalSeconds={currentGame.turn_duration_seconds} />
+          {currentGame.status === 'playing' && currentGame.timer_ends_at && (
+            <GameTimer seconds={timeRemaining} totalSeconds={currentGame.game_duration_seconds || 300} />
           )}
           {currentGame.status === 'waiting' && (
             <Text style={styles.waitingText}>Waiting...</Text>
-          )}
-          {currentGame.status === 'playing' && !isMyTurn && (
-            <Text style={styles.waitingText}>Wait...</Text>
           )}
         </View>
 
@@ -630,7 +584,7 @@ export default function GameScreen() {
 
       <View style={styles.boardWrapper}>
         <GameBoard
-          board={currentGame.board as any}
+          board={(isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board}
           onCellPress={handleBoardCellPress}
           placedTiles={placedTiles}
           selectedCell={selectedCell}
@@ -688,28 +642,20 @@ export default function GameScreen() {
             <Package size={24} color="#fff" />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleShuffle} style={styles.actionButton} disabled={!isMyTurn}>
-            <Shuffle size={24} color={!isMyTurn ? "#888" : "#fff"} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handlePassTurn}
-            disabled={!isMyTurn || loading}
-            style={[styles.passButton, (!isMyTurn || loading) && styles.passButtonDisabled]}
-          >
-            <Text style={styles.passButtonText}>Pass</Text>
+          <TouchableOpacity onPress={handleShuffle} style={styles.actionButton}>
+            <Shuffle size={24} color="#fff" />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleSubmit}
-            disabled={placedTiles.length < 2 || loading || !isMyTurn}
-            style={[styles.submitButtonNew, (placedTiles.length < 2 || loading || !isMyTurn) && styles.submitButtonDisabled]}
+            disabled={placedTiles.length < 2 || loading}
+            style={[styles.submitButtonNew, (placedTiles.length < 2 || loading) && styles.submitButtonDisabled]}
           >
-            <Text style={styles.submitButtonTextNew}>Submit</Text>
+            <Text style={styles.submitButtonTextNew}>Play Word</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleClear} style={styles.actionButton} disabled={!isMyTurn}>
-            <X size={24} color={!isMyTurn ? "#888" : "#fff"} />
+          <TouchableOpacity onPress={handleClear} style={styles.actionButton}>
+            <X size={24} color="#fff" />
           </TouchableOpacity>
 
           <View style={styles.scoreCircle}>

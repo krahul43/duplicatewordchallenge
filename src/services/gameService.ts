@@ -25,37 +25,36 @@ import {
 } from '../utils/gameLogic';
 
 export const gameService = {
-  async createGame(playerId: string, isPrivate: boolean, timerDuration: TimerDuration = 180): Promise<string> {
+  async createGame(playerId: string, isPrivate: boolean, timerDuration: TimerDuration = 300): Promise<string> {
     const gameRef = doc(collection(db, 'games'));
-    const board = initializeBoard();
-    const tileBag = generateTileBag();
+    const player1Board = initializeBoard();
+    const player2Board = initializeBoard();
+    const sharedTileBag = generateTileBag();
 
-    const { tiles: player1Rack, remainingBag: bagAfterPlayer1 } = drawTiles(tileBag, 7);
-    const { tiles: player2Rack, remainingBag } = drawTiles(bagAfterPlayer1, 7);
+    const { tiles: player1Rack } = drawTiles(sharedTileBag, 7);
+    const { tiles: player2Rack } = drawTiles(sharedTileBag, 7);
     const joinCode = isPrivate ? generateJoinCode() : null;
 
-    console.log('Creating game with racks:');
+    console.log('Creating dual-board game:');
     console.log('Player 1 Rack:', player1Rack, 'Length:', player1Rack.length);
     console.log('Player 2 Rack:', player2Rack, 'Length:', player2Rack.length);
-    console.log('Tile Bag Remaining:', remainingBag.length);
+    console.log('Shared Tile Bag:', sharedTileBag.length);
 
     const gameData: any = {
       id: gameRef.id,
       player1_id: playerId,
       player2_id: null,
       status: 'waiting',
-      board: flattenBoard(board),
-      tile_bag: remainingBag,
-      turn_duration_seconds: timerDuration,
+      player1_board: flattenBoard(player1Board),
+      player2_board: flattenBoard(player2Board),
+      shared_tile_bag: sharedTileBag,
       player1_rack: player1Rack,
       player2_rack: player2Rack,
       player1_score: 0,
       player2_score: 0,
-      player1_moves_count: 0,
-      player2_moves_count: 0,
-      player1_consecutive_passes: 0,
-      player2_consecutive_passes: 0,
-      pause_status: 'none',
+      player1_submitted: false,
+      player2_submitted: false,
+      game_duration_seconds: timerDuration,
       is_private: isPrivate,
       dictionary: 'en',
       created_at: new Date().toISOString(),
@@ -68,8 +67,9 @@ export const gameService = {
 
     console.log('Saving game data to Firebase:', {
       ...gameData,
-      board: '[BOARD]',
-      tile_bag: `[${remainingBag.length} tiles]`,
+      player1_board: '[BOARD]',
+      player2_board: '[BOARD]',
+      shared_tile_bag: `[${sharedTileBag.length} tiles]`,
     });
 
     await setDoc(gameRef, gameData);
@@ -86,15 +86,12 @@ export const gameService = {
     }
 
     const gameData = gameSnap.data();
-    const turnDuration = gameData.turn_duration_seconds || 180;
-    const timerEnd = new Date(Date.now() + turnDuration * 1000).toISOString();
-
-    const startingPlayer = Math.random() < 0.5 ? gameData.player1_id : playerId;
+    const gameDuration = gameData.game_duration_seconds || 300;
+    const timerEnd = new Date(Date.now() + gameDuration * 1000).toISOString();
 
     await updateDoc(gameRef, {
       player2_id: playerId,
       status: 'playing',
-      current_turn_player_id: startingPlayer,
       timer_ends_at: timerEnd,
       game_started_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -144,7 +141,8 @@ export const gameService = {
     return {
       id: gameSnap.id,
       ...data,
-      board: unflattenBoard(data.board),
+      player1_board: unflattenBoard(data.player1_board || data.board),
+      player2_board: unflattenBoard(data.player2_board || data.board),
     } as Game;
   },
 
@@ -169,7 +167,8 @@ export const gameService = {
         return {
           id: doc.id,
           ...data,
-          board: unflattenBoard(data.board),
+          player1_board: unflattenBoard(data.player1_board || data.board),
+          player2_board: unflattenBoard(data.player2_board || data.board),
         } as Game;
       });
     } catch (error) {
@@ -189,13 +188,14 @@ export const gameService = {
         console.log('- Status:', data.status);
         console.log('- Player1 Rack:', data.player1_rack);
         console.log('- Player2 Rack:', data.player2_rack);
-        console.log('- Has old shared_rack?:', !!(data as any).shared_rack);
-        console.log('- Current turn player:', data.current_turn_player_id);
+        console.log('- Player1 Submitted:', data.player1_submitted);
+        console.log('- Player2 Submitted:', data.player2_submitted);
 
         const game = {
           id: snapshot.id,
           ...data,
-          board: unflattenBoard(data.board),
+          player1_board: unflattenBoard(data.player1_board || data.board),
+          player2_board: unflattenBoard(data.player2_board || data.board),
         } as Game;
         callback(game);
       }
@@ -220,16 +220,15 @@ export const gameService = {
     const game = {
       id: gameSnap.id,
       ...data,
-      board: unflattenBoard(data.board),
+      player1_board: unflattenBoard(data.player1_board || data.board),
+      player2_board: unflattenBoard(data.player2_board || data.board),
     } as Game;
 
-    if (game.current_turn_player_id !== playerId) {
-      throw new Error('Not your turn');
-    }
-
     const isPlayer1 = game.player1_id === playerId;
+    const currentBoard = isPlayer1 ? game.player1_board : game.player2_board;
+    const boardKey = isPlayer1 ? 'player1_board' : 'player2_board';
 
-    let newBoard = game.board.map(row => row.map(cell => ({ ...cell })));
+    let newBoard = currentBoard.map(row => row.map(cell => ({ ...cell })));
 
     for (const tile of placements) {
       newBoard[tile.row][tile.col] = {
@@ -252,25 +251,19 @@ export const gameService = {
       return true;
     });
 
-    const { tiles: drawnTiles, remainingBag } = drawTiles(game.tile_bag, Math.min(tilesUsed, game.tile_bag.length));
+    const { tiles: drawnTiles } = drawTiles(game.shared_tile_bag, Math.min(tilesUsed, game.shared_tile_bag.length));
     const updatedRack = [...newRack, ...drawnTiles];
 
     const newScore = (isPlayer1 ? game.player1_score : game.player2_score) + score;
-    const nextPlayer = isPlayer1 ? game.player2_id : game.player1_id;
 
     const updateData: any = {
-      board: flattenBoard(newBoard),
-      tile_bag: remainingBag,
-      current_turn_player_id: nextPlayer,
-      timer_ends_at: new Date(Date.now() + game.turn_duration_seconds * 1000).toISOString(),
+      [boardKey]: flattenBoard(newBoard),
       updated_at: new Date().toISOString(),
     };
 
     if (isPlayer1) {
       updateData.player1_rack = updatedRack;
       updateData.player1_score = newScore;
-      updateData.player1_moves_count = game.player1_moves_count + 1;
-      updateData.player1_consecutive_passes = 0;
 
       if (!game.player1_highest_score || score > game.player1_highest_score) {
         updateData.player1_highest_word = word;
@@ -279,8 +272,6 @@ export const gameService = {
     } else {
       updateData.player2_rack = updatedRack;
       updateData.player2_score = newScore;
-      updateData.player2_moves_count = game.player2_moves_count + 1;
-      updateData.player2_consecutive_passes = 0;
 
       if (!game.player2_highest_score || score > game.player2_highest_score) {
         updateData.player2_highest_word = word;
@@ -288,16 +279,12 @@ export const gameService = {
       }
     }
 
-    if (updatedRack.length === 0 && remainingBag.length === 0) {
-      await this.endGame(gameId, game, updateData, playerId);
-    } else {
-      await updateDoc(gameRef, updateData);
-    }
+    await updateDoc(gameRef, updateData);
 
     return { success: true };
   },
 
-  async passTurn(gameId: string, playerId: string): Promise<void> {
+  async submitGame(gameId: string, playerId: string): Promise<void> {
     const gameRef = doc(db, 'games', gameId);
     const gameSnap = await getDoc(gameRef);
 
@@ -309,63 +296,40 @@ export const gameService = {
     const game = {
       id: gameSnap.id,
       ...data,
-      board: unflattenBoard(data.board),
+      player1_board: unflattenBoard(data.player1_board || data.board),
+      player2_board: unflattenBoard(data.player2_board || data.board),
     } as Game;
 
-    if (game.current_turn_player_id !== playerId) {
-      throw new Error('Not your turn');
-    }
-
     const isPlayer1 = game.player1_id === playerId;
-    const nextPlayer = isPlayer1 ? game.player2_id : game.player1_id;
 
     const updateData: any = {
-      current_turn_player_id: nextPlayer,
-      timer_ends_at: new Date(Date.now() + game.turn_duration_seconds * 1000).toISOString(),
+      [isPlayer1 ? 'player1_submitted' : 'player2_submitted']: true,
+      [isPlayer1 ? 'player1_submitted_at' : 'player2_submitted_at']: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    if (isPlayer1) {
-      updateData.player1_consecutive_passes = game.player1_consecutive_passes + 1;
-    } else {
-      updateData.player2_consecutive_passes = game.player2_consecutive_passes + 1;
-    }
+    await updateDoc(gameRef, updateData);
 
-    const player1Passes = isPlayer1 ? updateData.player1_consecutive_passes : game.player1_consecutive_passes;
-    const player2Passes = isPlayer1 ? game.player2_consecutive_passes : updateData.player2_consecutive_passes;
-
-    if (player1Passes >= 2 && player2Passes >= 2) {
-      await this.endGame(gameId, game, updateData, undefined);
-    } else {
-      await updateDoc(gameRef, updateData);
+    if (
+      (isPlayer1 && game.player2_submitted) ||
+      (!isPlayer1 && game.player1_submitted) ||
+      (updateData.player1_submitted && updateData.player2_submitted)
+    ) {
+      await this.endGame(gameId);
     }
   },
 
-  async endGame(gameId: string, game: Game, additionalUpdates: any, playerWhoFinishedId?: string): Promise<void> {
+  async endGame(gameId: string): Promise<void> {
+    const game = await this.getGame(gameId);
+    if (!game) return;
+
     const gameRef = doc(db, 'games', gameId);
 
-    const player1Rack = additionalUpdates.player1_rack || game.player1_rack;
-    const player2Rack = additionalUpdates.player2_rack || game.player2_rack;
-    const player1Score = additionalUpdates.player1_score || game.player1_score;
-    const player2Score = additionalUpdates.player2_score || game.player2_score;
-
-    const finalScores = calculateFinalScores(
-      player1Score,
-      player2Score,
-      player1Rack,
-      player2Rack,
-      playerWhoFinishedId,
-      game.player1_id
-    );
-
-    const winnerId = finalScores.player1Final > finalScores.player2Final ? game.player1_id : game.player2_id;
+    const winnerId = game.player1_score > game.player2_score ? game.player1_id : game.player2_id;
 
     const endData = {
-      ...additionalUpdates,
       status: 'finished',
       winner_id: winnerId,
-      player1_remaining_tiles: player1Rack,
-      player2_remaining_tiles: player2Rack,
       game_ended_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -374,23 +338,12 @@ export const gameService = {
   },
 
   async handleTimeExpired(gameId: string): Promise<void> {
-    const gameRef = doc(db, 'games', gameId);
-    const gameSnap = await getDoc(gameRef);
-
-    if (!gameSnap.exists()) return;
-
-    const data = gameSnap.data();
-    const game = {
-      id: gameSnap.id,
-      ...data,
-      board: unflattenBoard(data.board),
-    } as Game;
+    const game = await this.getGame(gameId);
+    if (!game) return;
 
     if (game.status !== 'playing') return;
 
-    if (game.current_turn_player_id) {
-      await this.passTurn(gameId, game.current_turn_player_id);
-    }
+    await this.endGame(gameId);
   },
 
   async requestPause(gameId: string, playerId: string): Promise<void> {

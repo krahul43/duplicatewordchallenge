@@ -46,23 +46,41 @@ export interface Submission {
   placement?: Placement;
 }
 
+export type RoundStatus = 'waiting_for_submissions' | 'comparing' | 'completed';
+
 export interface Round {
   id: string;
   game_id: string;
   round_number: number;
-  rack: Tile[];
+  shared_rack: Tile[];
+
   player1_word?: string;
-  player1_points?: number;
-  player1_submitted_at?: string;
+  player1_score?: number;
   player1_placement?: Placement;
+  player1_tiles_used?: Tile[];
+  player1_submitted: boolean;
+  player1_submitted_at?: string;
+
   player2_word?: string;
-  player2_points?: number;
-  player2_submitted_at?: string;
+  player2_score?: number;
   player2_placement?: Placement;
+  player2_tiles_used?: Tile[];
+  player2_submitted: boolean;
+  player2_submitted_at?: string;
+
+  status: RoundStatus;
   winner_id?: string;
   winning_word?: string;
-  winning_points?: number;
+  winning_score?: number;
+  winning_placement?: Placement;
+
   created_at: string;
+  completed_at?: string;
+
+  rack?: Tile[];
+  player1_points?: number;
+  player2_points?: number;
+  winning_points?: number;
 }
 
 export interface Game {
@@ -70,29 +88,33 @@ export interface Game {
   player1_id: string;
   player2_id?: string;
   status: GameStatus;
-  board: BoardCell[][];
-  current_turn_player_id?: string;
-  tile_bag: Tile[];
-  timer_ends_at?: string;
-  turn_duration_seconds: number;
+
+  player1_board: BoardCell[][];
+  player2_board: BoardCell[][];
+
+  shared_tile_bag: Tile[];
+
   player1_rack: Tile[];
   player2_rack: Tile[];
+
   player1_score: number;
   player2_score: number;
-  player1_moves_count: number;
-  player2_moves_count: number;
-  player1_consecutive_passes: number;
-  player2_consecutive_passes: number;
+
   player1_highest_word?: string;
   player1_highest_score?: number;
   player2_highest_word?: string;
   player2_highest_score?: number;
-  player1_remaining_tiles?: Tile[];
-  player2_remaining_tiles?: Tile[];
+
+  player1_submitted: boolean;
+  player2_submitted: boolean;
+  player1_submitted_at?: string;
+  player2_submitted_at?: string;
+
+  timer_ends_at?: string;
+  game_duration_seconds: number;
+
   winner_id?: string;
   resigned_player_id?: string;
-  pause_requested_by?: string;
-  pause_status: PauseRequestStatus;
   is_private: boolean;
   join_code?: string;
   dictionary: string;
@@ -100,6 +122,25 @@ export interface Game {
   updated_at: string;
   game_started_at?: string;
   game_ended_at?: string;
+
+  board?: BoardCell[][];
+  tile_bag?: Tile[];
+  shared_rack?: Tile[];
+  current_round?: number;
+  round_ends_at?: string;
+  round_duration_seconds?: number;
+  player1_rounds_won?: number;
+  player2_rounds_won?: number;
+  player1_consecutive_passes?: number;
+  player2_consecutive_passes?: number;
+  current_turn_player_id?: string;
+  turn_duration_seconds?: number;
+  player1_moves_count?: number;
+  player2_moves_count?: number;
+  player1_remaining_tiles?: Tile[];
+  player2_remaining_tiles?: Tile[];
+  pause_requested_by?: string;
+  pause_status?: PauseRequestStatus;
 }
 
 export interface GameMove {
