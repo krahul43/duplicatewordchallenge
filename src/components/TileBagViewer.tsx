@@ -1,6 +1,6 @@
-import React from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { X } from 'lucide-react-native';
+import React from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Tile } from '../types/game';
 
 interface Props {
@@ -140,33 +140,34 @@ const styles = StyleSheet.create({
   tile: {
     width: 50,
     height: 56,
-    backgroundColor: '#F5E6D3',
-    borderRadius: 8,
+    backgroundColor: '#FAE5C8',
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.4,
     shadowRadius: 4,
     elevation: 5,
-    borderWidth: 2,
-    borderColor: '#D4C4A8',
-    borderBottomWidth: 4,
-    borderBottomColor: '#C4B498',
+    borderWidth: 1,
+    borderColor: '#E8D4B0',
+    borderBottomWidth: 5,
+    borderBottomColor: '#D4C4A8',
     position: 'relative',
   },
   letter: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#2C3E50',
+    color: '#1A1A1A',
     textShadowColor: 'rgba(0, 0, 0, 0.1)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
+    letterSpacing: 0.5,
   },
   points: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#2C3E50',
+    color: '#1A1A1A',
     position: 'absolute',
     bottom: 3,
     right: 5,

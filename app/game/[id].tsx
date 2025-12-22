@@ -682,7 +682,7 @@ export default function GameScreen() {
       <TileBagViewer
         visible={showTileBag}
         onClose={() => setShowTileBag(false)}
-        tileBag={currentGame?.tile_bag || []}
+        tileBag={currentGame?.shared_tile_bag || []}
       />
 
       {validatingWord && (
