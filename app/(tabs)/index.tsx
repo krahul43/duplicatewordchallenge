@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { KeyRound, Play, Sparkles, User as UserIcon, Users, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { gameService } from '../../src/services/gameService';
 import { matchmakingService } from '../../src/services/matchmakingService';
@@ -93,20 +93,58 @@ export default function HomeScreen() {
       return;
     }
 
-    if (!profile?.id) return;
+    if (!profile?.id) {
+      console.error('[HomeScreen] No profile ID');
+      return;
+    }
+
+    console.log('[HomeScreen] ========== CREATE NEW GAME START ==========');
+    console.log('[HomeScreen] User ID:', profile.id);
+    console.log('[HomeScreen] Is Private:', isPrivate);
 
     setLoading(true);
 
     try {
       dispatch(resetGame());
+      console.log('[HomeScreen] Reset game state in Redux');
+
+      console.log('[HomeScreen] Cleaning up old games...');
       await cleanupOldWaitingGames();
+      console.log('[HomeScreen] Cleanup completed');
+
+      if (isPrivate) {
+        console.log('[HomeScreen] Cleaning up old matchmaking request for private game...');
+        try {
+          await matchmakingService.cancelMatchmaking(profile.id);
+        } catch (error) {
+          console.log('[HomeScreen] No matchmaking request to clean up');
+        }
+      }
+
+      console.log('[HomeScreen] Creating new game in Firebase...');
       const gameId = await gameService.createGame(profile.id, isPrivate);
-      console.log('Created new game with ID:', gameId);
+      console.log('[HomeScreen] ✅ NEW GAME CREATED! ID:', gameId);
+      console.log('[HomeScreen] Game ID length:', gameId?.length);
+      console.log('[HomeScreen] Game ID type:', typeof gameId);
+
+      if (!gameId || typeof gameId !== 'string') {
+        throw new Error('Invalid game ID received from createGame');
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      console.log('[HomeScreen] ========== NAVIGATING TO MATCHMAKING ==========');
+      console.log('[HomeScreen] Target route:', `/matchmaking/${gameId}`);
+
+      // Use push instead of replace to ensure proper navigation
       router.push(`/matchmaking/${gameId}`);
+      console.log('[HomeScreen] Navigation completed');
     } catch (error) {
-      console.error('Failed to create game:', error);
+      console.error('[HomeScreen] ❌ Failed to create game:', error);
+      Alert.alert('Error', 'Failed to create game. Please try again.');
     } finally {
       setLoading(false);
+      console.log('[HomeScreen] ========== CREATE NEW GAME END ==========');
     }
   }
 

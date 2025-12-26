@@ -189,25 +189,38 @@ export default function GameScreen() {
   async function loadGame() {
     if (!id || typeof id !== 'string' || !profile?.id) return;
 
+    console.log('[GameScreen] Loading game:', id);
+
     try {
       const game = await gameService.getGame(id);
 
       if (!game) {
+        console.error('[GameScreen] Game not found');
         Alert.alert('Error', 'Game not found', [{ text: 'OK', onPress: () => router.back() }]);
         return;
       }
 
+      console.log('[GameScreen] Loaded game:', {
+        id: game.id,
+        status: game.status,
+        player1_id: game.player1_id,
+        player2_id: game.player2_id,
+      });
+
       if (game.player1_id !== profile.id && game.player2_id !== profile.id) {
+        console.error('[GameScreen] User is not part of this game');
         Alert.alert('Error', 'You are not part of this game', [{ text: 'OK', onPress: () => router.back() }]);
         return;
       }
 
       if (game.status === 'waiting' && !game.player2_id) {
+        console.error('[GameScreen] Game is still waiting for opponent');
         Alert.alert('Waiting', 'Waiting for opponent to join...', [{ text: 'OK', onPress: () => router.back() }]);
         return;
       }
 
       if (game.status === 'cancelled') {
+        console.error('[GameScreen] Game is cancelled');
         Alert.alert('Game Cancelled', 'This game has been cancelled', [{ text: 'OK', onPress: () => router.back() }]);
         return;
       }
@@ -217,8 +230,12 @@ export default function GameScreen() {
       if (game.status === 'waiting' && game.player2_id) {
         startGame(game);
       }
+
+      if (game.status === 'finished') {
+        console.log('[GameScreen] Game is finished, loading summary');
+      }
     } catch (error) {
-      console.error('Failed to load game:', error);
+      console.error('[GameScreen] Failed to load game:', error);
       Alert.alert('Error', 'Failed to load game', [{ text: 'OK', onPress: () => router.back() }]);
     }
   }

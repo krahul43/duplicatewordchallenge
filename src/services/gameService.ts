@@ -26,7 +26,13 @@ import {
 
 export const gameService = {
   async createGame(playerId: string, isPrivate: boolean, timerDuration: TimerDuration = 300): Promise<string> {
+    console.log('[GameService] ========== CREATE GAME START ==========');
+    console.log('[GameService] Player ID:', playerId);
+    console.log('[GameService] Is Private:', isPrivate);
+
     const gameRef = doc(collection(db, 'games'));
+    console.log('[GameService] 🆕 Generated NEW game ID:', gameRef.id);
+
     const player1Board = initializeBoard();
     const player2Board = initializeBoard();
     const sharedTileBag = generateTileBag();
@@ -35,10 +41,10 @@ export const gameService = {
     const { tiles: player2Rack } = drawTiles(sharedTileBag, 7);
     const joinCode = isPrivate ? generateJoinCode() : null;
 
-    console.log('Creating dual-board game:');
-    console.log('Player 1 Rack:', player1Rack, 'Length:', player1Rack.length);
-    console.log('Player 2 Rack:', player2Rack, 'Length:', player2Rack.length);
-    console.log('Shared Tile Bag:', sharedTileBag.length);
+    console.log('[GameService] Creating dual-board game:');
+    console.log('[GameService] Player 1 Rack:', player1Rack, 'Length:', player1Rack.length);
+    console.log('[GameService] Player 2 Rack:', player2Rack, 'Length:', player2Rack.length);
+    console.log('[GameService] Shared Tile Bag:', sharedTileBag.length);
 
     const gameData: any = {
       id: gameRef.id,
@@ -66,7 +72,8 @@ export const gameService = {
       gameData.join_code_expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     }
 
-    console.log('Saving game data to Firebase:', {
+    console.log('[GameService] Saving game data to Firebase with ID:', gameRef.id);
+    console.log('[GameService] Game data preview:', {
       ...gameData,
       player1_board: '[BOARD]',
       player2_board: '[BOARD]',
@@ -74,7 +81,9 @@ export const gameService = {
     });
 
     await setDoc(gameRef, gameData);
-    console.log('Game created successfully with ID:', gameRef.id);
+    console.log('[GameService] ✅ Game saved to Firebase successfully!');
+    console.log('[GameService] Returning game ID:', gameRef.id);
+    console.log('[GameService] ========== CREATE GAME END ==========');
     return gameRef.id;
   },
 

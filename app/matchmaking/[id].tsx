@@ -17,19 +17,82 @@ export default function MatchmakingScreen() {
   const [isExpired, setIsExpired] = useState(false);
   const hasNavigatedRef = useRef(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentGameIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!id || typeof id !== 'string' || !profile?.id) return;
+    if (!id || typeof id !== 'string' || !profile?.id) {
+      console.error('[MatchmakingScreen] Missing required data:', { id, hasProfile: !!profile?.id });
+      return;
+    }
 
+    console.log('[MatchmakingScreen] ========== SCREEN MOUNTED/UPDATED ==========');
+    console.log('[MatchmakingScreen] Game ID from route:', id);
+    console.log('[MatchmakingScreen] Game ID type:', typeof id);
+    console.log('[MatchmakingScreen] User ID:', profile.id);
+    console.log('[MatchmakingScreen] Previous game ID:', currentGameIdRef.current);
+
+    // Store current game ID
+    currentGameIdRef.current = id;
+
+    // Reset state for new game
+    setGame(null);
+    setIsExpired(false);
     hasNavigatedRef.current = false;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
 
+    console.log('[MatchmakingScreen] State reset, loading game...');
     loadInitialGame();
 
+    console.log('[MatchmakingScreen] Setting up subscription for game:', id);
     const gameUnsubscribe = gameService.subscribeToGame(id, (updatedGame) => {
-      if (hasNavigatedRef.current) return;
+      // Check if this update is for the current game
+      if (currentGameIdRef.current !== id) {
+        console.log('[MatchmakingScreen] ⚠️ Update ignored - stale subscription');
+        console.log('[MatchmakingScreen] Current game ID:', currentGameIdRef.current);
+        console.log('[MatchmakingScreen] Update game ID:', id);
+        return;
+      }
+
+      if (hasNavigatedRef.current) {
+        console.log('[MatchmakingScreen] Update ignored - already navigated');
+        return;
+      }
 
       if (!updatedGame) {
-        console.log('Game not found');
+        console.log('[MatchmakingScreen] Game not found in subscription');
+        return;
+      }
+
+      console.log('[MatchmakingScreen] 📥 Game update received for subscription ID:', id);
+      console.log('[MatchmakingScreen] Update data:', {
+        gameId: updatedGame.id,
+        subscriptionId: id,
+        currentGameId: currentGameIdRef.current,
+        idsMatch: updatedGame.id === id && id === currentGameIdRef.current,
+        status: updatedGame.status,
+        is_private: updatedGame.is_private,
+        player2_id: updatedGame.player2_id,
+      });
+
+      if (updatedGame.status === 'finished') {
+        console.error('[MatchmakingScreen] Game is finished, should not be in matchmaking');
+        hasNavigatedRef.current = true;
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        Alert.alert('Error', 'This game has already ended', [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)');
+              }
+            }
+          }
+        ]);
         return;
       }
 
@@ -38,12 +101,12 @@ export default function MatchmakingScreen() {
       const isParticipant = isPlayer1 || isPlayer2;
 
       if (updatedGame.is_private && !isPlayer1) {
-        console.log('Not the game creator for private match');
+        console.log('[MatchmakingScreen] Not the game creator for private match');
         return;
       }
 
       if (!updatedGame.is_private && !isParticipant) {
-        console.log('Not a participant in this public match');
+        console.log('[MatchmakingScreen] Not a participant in this public match');
         return;
       }
 
@@ -65,9 +128,10 @@ export default function MatchmakingScreen() {
         }
       }
 
-      if (updatedGame.status === 'cancelled' || updatedGame.status === 'finished') {
+      if (updatedGame.status === 'cancelled') {
         hasNavigatedRef.current = true;
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        console.log('[MatchmakingScreen] Game cancelled, going back');
         router.back();
         return;
       }
@@ -75,25 +139,36 @@ export default function MatchmakingScreen() {
       if (updatedGame.status === 'playing' && updatedGame.player2_id) {
         hasNavigatedRef.current = true;
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        console.log('Game started with both players, navigating to game:', id);
+        console.log('[MatchmakingScreen] Game started with both players, navigating to game:', id);
         router.replace(`/game/${id}`);
       }
     });
 
-    const matchmakingUnsubscribe = matchmakingService.subscribeToMatchmaking(
-      profile.id,
-      async (request) => {
-        if (hasNavigatedRef.current) return;
+    let matchmakingUnsubscribe: (() => void) | null = null;
 
-        if (request?.status === 'matched' && request.gameId && request.gameId !== id) {
-          hasNavigatedRef.current = true;
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          console.log('Matched with opponent in different game, navigating to:', request.gameId);
-          await presenceService.setInGame(profile.id, request.gameId);
-          router.replace(`/game/${request.gameId}`);
-        }
+    // Only subscribe to matchmaking for PUBLIC games
+    loadInitialGame().then((gameData) => {
+      if (gameData && !gameData.is_private) {
+        console.log('[MatchmakingScreen] Setting up matchmaking subscription for public game');
+        matchmakingUnsubscribe = matchmakingService.subscribeToMatchmaking(
+          profile.id,
+          async (request) => {
+            if (hasNavigatedRef.current) return;
+            if (currentGameIdRef.current !== id) return;
+
+            if (request?.status === 'matched' && request.gameId && request.gameId !== id) {
+              hasNavigatedRef.current = true;
+              if (timeoutRef.current) clearTimeout(timeoutRef.current);
+              console.log('Matched with opponent in different game, navigating to:', request.gameId);
+              await presenceService.setInGame(profile.id, request.gameId);
+              router.replace(`/game/${request.gameId}`);
+            }
+          }
+        );
+      } else {
+        console.log('[MatchmakingScreen] Private game - skipping matchmaking subscription');
       }
-    );
+    });
 
     const timeout = setTimeout(async () => {
       if (hasNavigatedRef.current) {
@@ -127,25 +202,70 @@ export default function MatchmakingScreen() {
     timeoutRef.current = timeout;
 
     return () => {
-      console.log('Matchmaking screen cleanup');
+      console.log('[MatchmakingScreen] Cleanup for game:', id);
       hasNavigatedRef.current = true;
       gameUnsubscribe();
-      matchmakingUnsubscribe();
+      if (matchmakingUnsubscribe) {
+        matchmakingUnsubscribe();
+      }
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+      }
+      // Clear current game ID on cleanup
+      if (currentGameIdRef.current === id) {
+        currentGameIdRef.current = null;
       }
     };
   }, [id, profile?.id]);
 
-  async function loadInitialGame() {
-    if (!id || typeof id !== 'string' || !profile?.id) return;
+  async function loadInitialGame(): Promise<Game | null> {
+    if (!id || typeof id !== 'string' || !profile?.id) return null;
+
+    console.log('[MatchmakingScreen] Loading initial game:', id);
+    const loadGameId = id; // Capture the ID at call time
 
     try {
-      const gameData = await gameService.getGame(id);
+      const gameData = await gameService.getGame(loadGameId);
+
+      // Check if we're still on the same game after async operation
+      if (currentGameIdRef.current !== loadGameId) {
+        console.log('[MatchmakingScreen] ⚠️ Load cancelled - game ID changed');
+        console.log('[MatchmakingScreen] Loaded ID:', loadGameId);
+        console.log('[MatchmakingScreen] Current ID:', currentGameIdRef.current);
+        return null;
+      }
+
       if (!gameData) {
-        console.error('Game not found');
+        console.error('[MatchmakingScreen] Game not found');
         Alert.alert('Error', 'Game not found', [{ text: 'OK', onPress: () => router.back() }]);
-        return;
+        return null;
+      }
+
+      console.log('[MatchmakingScreen] Loaded game:', {
+        id: gameData.id,
+        status: gameData.status,
+        is_private: gameData.is_private,
+        player1_id: gameData.player1_id,
+        player2_id: gameData.player2_id,
+      });
+
+      if (gameData.status === 'finished' || gameData.status === 'cancelled') {
+        console.error('[MatchmakingScreen] Game is already finished/cancelled');
+        hasNavigatedRef.current = true;
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        Alert.alert('Error', 'This game has already ended', [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)');
+              }
+            }
+          }
+        ]);
+        return null;
       }
 
       const isPlayer1 = gameData.player1_id === profile.id;
@@ -153,15 +273,15 @@ export default function MatchmakingScreen() {
       const isParticipant = isPlayer1 || isPlayer2;
 
       if (gameData.is_private && !isPlayer1) {
-        console.error('User is not the game creator for private game');
+        console.error('[MatchmakingScreen] User is not the game creator for private game');
         Alert.alert('Error', 'You cannot access this private game', [{ text: 'OK', onPress: () => router.back() }]);
-        return;
+        return null;
       }
 
       if (!gameData.is_private && !isParticipant) {
-        console.error('User is not a participant in this public game');
+        console.error('[MatchmakingScreen] User is not a participant in this public game');
         Alert.alert('Error', 'You are not part of this game', [{ text: 'OK', onPress: () => router.back() }]);
-        return;
+        return null;
       }
 
       if (gameData.is_private && gameData.join_code_expires_at) {
@@ -174,7 +294,7 @@ export default function MatchmakingScreen() {
             [{ text: 'OK', onPress: () => router.back() }],
             { onDismiss: () => router.back() }
           );
-          return;
+          return null;
         }
       }
 
@@ -183,12 +303,15 @@ export default function MatchmakingScreen() {
       if (gameData.status === 'playing' && gameData.player2_id) {
         hasNavigatedRef.current = true;
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        console.log('Game already playing on initial load, navigating');
+        console.log('[MatchmakingScreen] Game already playing on initial load, navigating');
         router.replace(`/game/${id}`);
       }
+
+      return gameData;
     } catch (error) {
-      console.error('Failed to load game:', error);
+      console.error('[MatchmakingScreen] Failed to load game:', error);
       Alert.alert('Error', 'Failed to load game', [{ text: 'OK', onPress: () => router.back() }]);
+      return null;
     }
   }
 
