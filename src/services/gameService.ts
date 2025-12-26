@@ -63,6 +63,7 @@ export const gameService = {
 
     if (joinCode) {
       gameData.join_code = joinCode;
+      gameData.join_code_expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     }
 
     console.log('Saving game data to Firebase:', {
@@ -86,6 +87,30 @@ export const gameService = {
     }
 
     const gameData = gameSnap.data();
+
+    if (gameData.status !== 'waiting') {
+      throw new Error('Game is no longer available');
+    }
+
+    if (gameData.player1_id === playerId) {
+      throw new Error('You cannot join your own game');
+    }
+
+    if (gameData.player2_id) {
+      throw new Error('Game is already full');
+    }
+
+    if (gameData.join_code_expires_at) {
+      const expiresAt = new Date(gameData.join_code_expires_at).getTime();
+      if (Date.now() > expiresAt) {
+        await updateDoc(gameRef, {
+          status: 'cancelled',
+          updated_at: new Date().toISOString(),
+        });
+        throw new Error('This game code has expired');
+      }
+    }
+
     const gameDuration = gameData.game_duration_seconds || 300;
     const timerEnd = new Date(Date.now() + gameDuration * 1000).toISOString();
 

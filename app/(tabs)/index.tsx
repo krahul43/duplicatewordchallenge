@@ -115,12 +115,17 @@ export default function HomeScreen() {
 
     try {
       const playerGames = await gameService.getPlayerGames(profile.id);
+      const now = Date.now();
 
-      const gamesToCleanup = playerGames.filter(g =>
-        g.status === 'waiting' ||
-        g.status === 'cancelled' ||
-        (g.status === 'finished' && g.is_private && !g.player2_id)
-      );
+      const gamesToCleanup = playerGames.filter(g => {
+        const isOldWaiting = g.status === 'waiting' || g.status === 'cancelled';
+        const isUnfinishedPrivate = g.status === 'finished' && g.is_private && !g.player2_id;
+
+        const isExpired = g.join_code_expires_at &&
+          new Date(g.join_code_expires_at).getTime() < now;
+
+        return isOldWaiting || isUnfinishedPrivate || isExpired;
+      });
 
       for (const game of gamesToCleanup) {
         await gameService.cancelWaitingGame(game.id);

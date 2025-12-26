@@ -117,6 +117,7 @@ export interface Game {
   resigned_player_id?: string;
   is_private: boolean;
   join_code?: string;
+  join_code_expires_at?: string;
   dictionary: string;
   created_at: string;
   updated_at: string;

@@ -44,6 +44,13 @@ export default function GameScreen() {
     loadGame();
 
     const unsubscribe = gameService.subscribeToGame(id, (game) => {
+      if (!game) return;
+
+      if (game.player1_id !== profile.id && game.player2_id !== profile.id) {
+        console.log('User is not part of this game, ignoring updates');
+        return;
+      }
+
       dispatch(setCurrentGame(game));
 
       if (game.player2_id && !opponentProfile) {
@@ -180,20 +187,39 @@ export default function GameScreen() {
   }, [currentGame?.timer_ends_at, currentGame?.status, profile?.id]);
 
   async function loadGame() {
-    if (!id || typeof id !== 'string') return;
+    if (!id || typeof id !== 'string' || !profile?.id) return;
 
     try {
       const game = await gameService.getGame(id);
 
-      if (game) {
-        dispatch(setCurrentGame(game));
+      if (!game) {
+        Alert.alert('Error', 'Game not found', [{ text: 'OK', onPress: () => router.back() }]);
+        return;
+      }
 
-        if (game.status === 'waiting' && game.player2_id) {
-          startGame(game);
-        }
+      if (game.player1_id !== profile.id && game.player2_id !== profile.id) {
+        Alert.alert('Error', 'You are not part of this game', [{ text: 'OK', onPress: () => router.back() }]);
+        return;
+      }
+
+      if (game.status === 'waiting' && !game.player2_id) {
+        Alert.alert('Waiting', 'Waiting for opponent to join...', [{ text: 'OK', onPress: () => router.back() }]);
+        return;
+      }
+
+      if (game.status === 'cancelled') {
+        Alert.alert('Game Cancelled', 'This game has been cancelled', [{ text: 'OK', onPress: () => router.back() }]);
+        return;
+      }
+
+      dispatch(setCurrentGame(game));
+
+      if (game.status === 'waiting' && game.player2_id) {
+        startGame(game);
       }
     } catch (error) {
       console.error('Failed to load game:', error);
+      Alert.alert('Error', 'Failed to load game', [{ text: 'OK', onPress: () => router.back() }]);
     }
   }
 

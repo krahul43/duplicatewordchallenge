@@ -7,12 +7,14 @@ interface Props {
   joinCode: string;
   gameId: string;
   onCancel: () => void;
+  expiresAt?: string;
 }
 
-export function WaitingForFriendScreen({ joinCode, gameId, onCancel }: Props) {
+export function WaitingForFriendScreen({ joinCode, gameId, onCancel, expiresAt }: Props) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const [copied, setCopied] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
 
   useEffect(() => {
     const pulseAnimation = Animated.loop(
@@ -46,6 +48,30 @@ export function WaitingForFriendScreen({ joinCode, gameId, onCancel }: Props) {
       rotateAnimation.stop();
     };
   }, []);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const expiry = new Date(expiresAt).getTime();
+      const diff = expiry - now;
+
+      if (diff <= 0) {
+        setTimeRemaining('Expired');
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [expiresAt]);
 
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
@@ -87,6 +113,11 @@ export function WaitingForFriendScreen({ joinCode, gameId, onCancel }: Props) {
         <View style={styles.codeBox}>
           <Text style={styles.code}>{joinCode}</Text>
         </View>
+        {timeRemaining && (
+          <Text style={styles.expiryText}>
+            {timeRemaining === 'Expired' ? '⏰ Code Expired' : `⏰ Expires in ${timeRemaining}`}
+          </Text>
+        )}
       </View>
 
       <View style={styles.actions}>
@@ -209,6 +240,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#66BB6A',
     letterSpacing: 4,
+  },
+  expiryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: spacing.sm,
+    textAlign: 'center',
   },
   actions: {
     flexDirection: 'row',

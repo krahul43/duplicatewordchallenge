@@ -50,6 +50,15 @@ export default function JoinGameScreen() {
         return;
       }
 
+      if (gameData.join_code_expires_at) {
+        const expiresAt = new Date(gameData.join_code_expires_at).getTime();
+        if (Date.now() > expiresAt) {
+          Alert.alert('Code Expired', 'This game code has expired. Please ask your friend for a new code.');
+          setLoading(false);
+          return;
+        }
+      }
+
       await gameService.joinGame(gameDoc.id, profile.id);
       router.replace(`/game/${gameDoc.id}`);
     } catch (error) {
