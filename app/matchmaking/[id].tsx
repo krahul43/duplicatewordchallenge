@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { MatchmakingLoader } from '../../src/components/MatchmakingLoader';
 import { WaitingForFriendScreen } from '../../src/components/WaitingForFriendScreen';
@@ -33,8 +33,17 @@ export default function MatchmakingScreen() {
         return;
       }
 
-      if (updatedGame.player1_id !== profile.id && !updatedGame.is_private) {
-        console.log('Not the game creator for public match');
+      const isPlayer1 = updatedGame.player1_id === profile.id;
+      const isPlayer2 = updatedGame.player2_id === profile.id;
+      const isParticipant = isPlayer1 || isPlayer2;
+
+      if (updatedGame.is_private && !isPlayer1) {
+        console.log('Not the game creator for private match');
+        return;
+      }
+
+      if (!updatedGame.is_private && !isParticipant) {
+        console.log('Not a participant in this public match');
         return;
       }
 
@@ -139,8 +148,19 @@ export default function MatchmakingScreen() {
         return;
       }
 
-      if (gameData.player1_id !== profile.id && !gameData.is_private) {
-        console.error('User is not the game creator');
+      const isPlayer1 = gameData.player1_id === profile.id;
+      const isPlayer2 = gameData.player2_id === profile.id;
+      const isParticipant = isPlayer1 || isPlayer2;
+
+      if (gameData.is_private && !isPlayer1) {
+        console.error('User is not the game creator for private game');
+        Alert.alert('Error', 'You cannot access this private game', [{ text: 'OK', onPress: () => router.back() }]);
+        return;
+      }
+
+      if (!gameData.is_private && !isParticipant) {
+        console.error('User is not a participant in this public game');
+        Alert.alert('Error', 'You are not part of this game', [{ text: 'OK', onPress: () => router.back() }]);
         return;
       }
 
