@@ -17,7 +17,7 @@ export default function HomeScreen() {
   const dispatch = useDispatch();
   const profile = useSelector((state: RootState) => state.auth.profile);
   const subscription = useSelector((state: RootState) => state.subscription);
-  const [games, setGames] = useState<Game[]>([]);
+  const [lastActiveGame, setLastActiveGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [presenceReady, setPresenceReady] = useState(false);
@@ -25,7 +25,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    loadGames();
+    loadLastActiveGame();
 
     if (profile?.display_name) {
       presenceService.setUserOnline(profile.id, profile.display_name)
@@ -43,12 +43,26 @@ export default function HomeScreen() {
     };
   }, [profile?.id]);
 
-  async function loadGames() {
+  async function loadLastActiveGame() {
     if (!profile) return;
 
     try {
       const playerGames = await gameService.getPlayerGames(profile.id);
-      setGames(playerGames.filter(g => g.status === 'playing' || g.status === 'paused'));
+      const activeGames = playerGames.filter(g =>
+        g.status === 'playing' || g.status === 'paused'
+      );
+
+      if (activeGames.length > 0) {
+        // Get the most recently updated game
+        const sortedGames = activeGames.sort((a, b) => {
+          const dateA = new Date(a.updated_at || a.created_at).getTime();
+          const dateB = new Date(b.updated_at || b.created_at).getTime();
+          return dateB - dateA;
+        });
+        setLastActiveGame(sortedGames[0]);
+      } else {
+        setLastActiveGame(null);
+      }
     } catch (error) {
       console.error('Failed to load games:', error);
     }
@@ -56,7 +70,7 @@ export default function HomeScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadGames();
+    await loadLastActiveGame();
     setRefreshing(false);
   }
 
@@ -195,10 +209,10 @@ export default function HomeScreen() {
           />
         }
       >
-        {games.length > 0 && (
+        {lastActiveGame && (
           <TouchableOpacity
             style={styles.gameInProgressBanner}
-            onPress={() => router.push(`/game/${games[0].id}`)}
+            onPress={() => router.push(`/game/${lastActiveGame.id}`)}
           >
             <LinearGradient
               colors={['#f59e0b', '#f97316']}

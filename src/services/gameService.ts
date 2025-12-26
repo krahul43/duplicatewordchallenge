@@ -196,15 +196,46 @@ export const gameService = {
       );
 
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          player1_board: unflattenBoard(data.player1_board || data.board),
-          player2_board: unflattenBoard(data.player2_board || data.board),
-        } as Game;
-      });
+
+      const games = await Promise.all(
+        snapshot.docs.map(async (docSnapshot) => {
+          const data = docSnapshot.data();
+
+          let player1DisplayName: string | undefined;
+          let player2DisplayName: string | undefined;
+
+          try {
+            if (data.player1_id) {
+              const player1Ref = doc(db, 'profiles', data.player1_id);
+              const player1Snap = await getDoc(player1Ref);
+              if (player1Snap.exists()) {
+                player1DisplayName = player1Snap.data().display_name;
+              }
+            }
+
+            if (data.player2_id) {
+              const player2Ref = doc(db, 'profiles', data.player2_id);
+              const player2Snap = await getDoc(player2Ref);
+              if (player2Snap.exists()) {
+                player2DisplayName = player2Snap.data().display_name;
+              }
+            }
+          } catch (profileError) {
+            console.error('Error fetching player profiles:', profileError);
+          }
+
+          return {
+            id: docSnapshot.id,
+            ...data,
+            player1_display_name: player1DisplayName,
+            player2_display_name: player2DisplayName,
+            player1_board: unflattenBoard(data.player1_board || data.board),
+            player2_board: unflattenBoard(data.player2_board || data.board),
+          } as Game;
+        })
+      );
+
+      return games;
     } catch (error) {
       console.error('Error getting player games:', error);
       return [];

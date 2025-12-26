@@ -87,6 +87,8 @@ export interface Game {
   id: string;
   player1_id: string;
   player2_id?: string;
+  player1_display_name?: string;
+  player2_display_name?: string;
   status: GameStatus;
 
   player1_board: BoardCell[][];

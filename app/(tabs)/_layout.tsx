@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Settings } from 'lucide-react-native';
+import { Home, Settings, Trophy } from 'lucide-react-native';
 import { colors } from '../../src/theme/colors';
 
 export default function TabsLayout() {
@@ -19,6 +19,13 @@ export default function TabsLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ size, color }) => <Home size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="games"
+        options={{
+          title: 'Games',
+          tabBarIcon: ({ size, color }) => <Trophy size={size} color={color} />,
         }}
       />
       <Tabs.Screen
