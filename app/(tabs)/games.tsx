@@ -25,11 +25,29 @@ export default function GamesScreen() {
 
     try {
       setLoading(true);
+
+      await gameService.cleanupExpiredWaitingGames(profile.id);
+
       const playerGames = await gameService.getPlayerGames(profile.id);
 
-      const active = playerGames.filter(g =>
-        g.status === 'playing' || g.status === 'paused' || g.status === 'waiting'
-      );
+      const now = Date.now();
+
+      const active = playerGames.filter(g => {
+        if (g.status === 'playing' || g.status === 'paused') {
+          return true;
+        }
+
+        if (g.status === 'waiting') {
+          if (g.join_code_expires_at) {
+            const expiresAt = new Date(g.join_code_expires_at).getTime();
+            return now <= expiresAt;
+          }
+          return true;
+        }
+
+        return false;
+      });
+
       const completed = playerGames.filter(g =>
         g.status === 'finished'
       );

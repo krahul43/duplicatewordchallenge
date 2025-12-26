@@ -113,8 +113,10 @@ export const gameService = {
       const expiresAt = new Date(gameData.join_code_expires_at).getTime();
       if (Date.now() > expiresAt) {
         await updateDoc(gameRef, {
-          status: 'cancelled',
+          status: 'finished',
+          resigned_player_id: gameData.player1_id,
           updated_at: new Date().toISOString(),
+          game_ended_at: new Date().toISOString(),
         });
         throw new Error('This game code has expired');
       }
@@ -172,9 +174,35 @@ export const gameService = {
     }
 
     const data = gameSnap.data();
+
+    let player1DisplayName: string | undefined;
+    let player2DisplayName: string | undefined;
+
+    try {
+      if (data.player1_id) {
+        const player1Ref = doc(db, 'profiles', data.player1_id);
+        const player1Snap = await getDoc(player1Ref);
+        if (player1Snap.exists()) {
+          player1DisplayName = player1Snap.data().display_name;
+        }
+      }
+
+      if (data.player2_id) {
+        const player2Ref = doc(db, 'profiles', data.player2_id);
+        const player2Snap = await getDoc(player2Ref);
+        if (player2Snap.exists()) {
+          player2DisplayName = player2Snap.data().display_name;
+        }
+      }
+    } catch (profileError) {
+      console.error('Error fetching player profiles in getGame:', profileError);
+    }
+
     return {
       id: gameSnap.id,
       ...data,
+      player1_display_name: player1DisplayName,
+      player2_display_name: player2DisplayName,
       player1_board: unflattenBoard(data.player1_board || data.board),
       player2_board: unflattenBoard(data.player2_board || data.board),
     } as Game;
@@ -245,7 +273,7 @@ export const gameService = {
   subscribeToGame(gameId: string, callback: (game: Game) => void): Unsubscribe {
     const gameRef = doc(db, 'games', gameId);
 
-    return onSnapshot(gameRef, (snapshot) => {
+    return onSnapshot(gameRef, async (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
 
@@ -256,9 +284,34 @@ export const gameService = {
         console.log('- Player1 Submitted:', data.player1_submitted);
         console.log('- Player2 Submitted:', data.player2_submitted);
 
+        let player1DisplayName: string | undefined;
+        let player2DisplayName: string | undefined;
+
+        try {
+          if (data.player1_id) {
+            const player1Ref = doc(db, 'profiles', data.player1_id);
+            const player1Snap = await getDoc(player1Ref);
+            if (player1Snap.exists()) {
+              player1DisplayName = player1Snap.data().display_name;
+            }
+          }
+
+          if (data.player2_id) {
+            const player2Ref = doc(db, 'profiles', data.player2_id);
+            const player2Snap = await getDoc(player2Ref);
+            if (player2Snap.exists()) {
+              player2DisplayName = player2Snap.data().display_name;
+            }
+          }
+        } catch (profileError) {
+          console.error('Error fetching player profiles in subscription:', profileError);
+        }
+
         const game = {
           id: snapshot.id,
           ...data,
+          player1_display_name: player1DisplayName,
+          player2_display_name: player2DisplayName,
           player1_board: unflattenBoard(data.player1_board || data.board),
           player2_board: unflattenBoard(data.player2_board || data.board),
         } as Game;
@@ -561,8 +614,8 @@ export const gameService = {
 
     const game = gameSnap.data() as Game;
 
-    if (game.status === 'cancelled') {
-      console.log('Game already cancelled');
+    if (game.status === 'finished') {
+      console.log('Game already finished/cancelled');
       return;
     }
 
@@ -572,9 +625,30 @@ export const gameService = {
     }
 
     await updateDoc(gameRef, {
-      status: 'cancelled',
+      status: 'finished',
+      resigned_player_id: game.player1_id,
       updated_at: new Date().toISOString(),
+      game_ended_at: new Date().toISOString(),
     });
+  },
+
+  async cleanupExpiredWaitingGames(userId: string): Promise<void> {
+    try {
+      const games = await this.getPlayerGames(userId);
+      const now = Date.now();
+
+      for (const game of games) {
+        if (game.status === 'waiting' && game.join_code_expires_at) {
+          const expiresAt = new Date(game.join_code_expires_at).getTime();
+          if (now > expiresAt) {
+            console.log(`Cleaning up expired game: ${game.id}`);
+            await this.cancelWaitingGame(game.id);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up expired games:', error);
+    }
   },
 };
 
