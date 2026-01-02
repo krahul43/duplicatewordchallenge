@@ -85,7 +85,7 @@ export default function HomeScreen() {
     setLoading(true);
 
     try {
-      await matchmakingService.cleanupOldRequests();
+      await matchmakingService.cleanupOldRequests(profile.id);
 
       const gameId = await matchmakingService.joinMatchmaking(
         profile.id,

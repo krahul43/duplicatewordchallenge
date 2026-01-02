@@ -1,21 +1,21 @@
 import {
   collection,
+  deleteDoc,
   doc,
-  setDoc,
   getDoc,
   getDocs,
-  query,
-  where,
   limit,
-  orderBy,
   onSnapshot,
-  updateDoc,
-  deleteDoc,
+  orderBy,
+  query,
+  setDoc,
   Unsubscribe,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { presenceService } from './presenceService';
 import { gameService } from './gameService';
+import { presenceService } from './presenceService';
 
 export interface MatchmakingRequest {
   userId: string;
@@ -197,18 +197,20 @@ export const matchmakingService = {
     });
   },
 
-  async cleanupOldRequests(): Promise<void> {
-    const matchmakingRef = collection(db, 'matchmaking');
+  async cleanupOldRequests(userId: string): Promise<void> {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-    const q = query(
-      matchmakingRef,
-      where('createdAt', '<', fiveMinutesAgo)
-    );
+    const requestRef = doc(db, 'matchmaking', userId);
+    const requestSnap = await getDoc(requestRef);
 
-    const snapshot = await getDocs(q);
+    if (requestSnap.exists()) {
+      const data = requestSnap.data() as MatchmakingRequest;
 
-    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-    await Promise.all(deletePromises);
+      if (data.createdAt < fiveMinutesAgo && data.status === 'searching') {
+        console.log(`[Matchmaking] Cleaning up old request for user ${userId}`);
+        await deleteDoc(requestRef);
+        await presenceService.setLookingForGame(userId, false);
+      }
+    }
   },
 };
