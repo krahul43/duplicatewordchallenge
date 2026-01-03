@@ -13,7 +13,7 @@ import { db } from '../../src/lib/firebase';
 import { gameService } from '../../src/services/gameService';
 import { presenceService } from '../../src/services/presenceService';
 import { RootState } from '../../src/store';
-import { addSelectedTile, clearSelectedTiles, setCurrentGame, setMyRack, setSelectedTiles, shuffleRack } from '../../src/store/slices/gameSlice';
+import { addSelectedTile, clearSelectedTiles, setCurrentGame, setMyRack, setSelectedTiles } from '../../src/store/slices/gameSlice';
 import { colors, spacing } from '../../src/theme/colors';
 import { Game, GameSummary, Tile } from '../../src/types/game';
 import { validateWordWithDictionary } from '../../src/utils/dictionaryApi';
@@ -265,9 +265,28 @@ export default function GameScreen() {
     dispatch(setSelectedTiles(newSelected));
   }
 
-  function handleShuffle() {
-    if (!currentGame) return;
-    dispatch(shuffleRack());
+  async function handleShuffle() {
+    if (!currentGame || !profile?.id || !id || typeof id !== 'string') return;
+
+    if (placedTiles.length > 0 || selectedTiles.length > 0) {
+      Alert.alert('Clear Board First', 'You must clear your placed and selected tiles before exchanging');
+      return;
+    }
+
+    if (currentGame.shared_tile_bag.length < 7) {
+      Alert.alert('Not Enough Tiles', 'There are not enough tiles left in the bag to exchange all 7 tiles');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await gameService.exchangeTiles(id, profile.id);
+      Alert.alert('Success', 'Tiles exchanged successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to exchange tiles');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleClear() {

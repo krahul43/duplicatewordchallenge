@@ -3,6 +3,12 @@ import React from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Tile } from '../types/game';
 
+const ORIGINAL_DISTRIBUTION: Record<string, number> = {
+  A: 9, B: 2, C: 2, D: 4, E: 12, F: 2, G: 3, H: 2, I: 9, J: 1,
+  K: 1, L: 4, M: 2, N: 6, O: 8, P: 2, Q: 1, R: 6, S: 4, T: 6,
+  U: 4, V: 2, W: 2, X: 1, Y: 2, Z: 1, BLANK: 2
+};
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -10,18 +16,19 @@ interface Props {
 }
 
 export function TileBagViewer({ visible, onClose, tileBag }: Props) {
-  const letterCounts = tileBag.reduce((acc, tile) => {
+  const remainingCounts = tileBag.reduce((acc, tile) => {
     acc[tile.letter] = (acc[tile.letter] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const sortedLetters = Object.entries(letterCounts).sort(([a], [b]) => {
+  const allLetters = Object.entries(ORIGINAL_DISTRIBUTION).sort(([a], [b]) => {
     if (a === 'BLANK') return 1;
     if (b === 'BLANK') return -1;
     return a.localeCompare(b);
   });
 
-  const totalTiles = tileBag.length;
+  const totalRemaining = tileBag.length;
+  const totalOriginal = Object.values(ORIGINAL_DISTRIBUTION).reduce((sum, count) => sum + count, 0);
 
   return (
     <Modal
@@ -34,7 +41,9 @@ export function TileBagViewer({ visible, onClose, tileBag }: Props) {
         <View style={styles.container}>
           <View style={styles.header}>
             <Text style={styles.title}>Tile Bag</Text>
-            <Text style={styles.subtitle}>{totalTiles} tiles remaining</Text>
+            <Text style={styles.subtitle}>
+              {totalRemaining} / {totalOriginal} tiles remaining
+            </Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <X size={24} color="#2C3E50" />
             </TouchableOpacity>
@@ -42,27 +51,35 @@ export function TileBagViewer({ visible, onClose, tileBag }: Props) {
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.grid}>
-              {sortedLetters.map(([letter, count]) => (
-                <View key={letter} style={styles.tileItem}>
-                  <View style={styles.tile}>
-                    <Text style={styles.letter}>
-                      {letter === 'BLANK' ? '★' : letter}
-                    </Text>
-                    <Text style={styles.points}>
-                      {letter === 'BLANK' ? '0' : getLetterPoints(letter)}
-                    </Text>
+              {allLetters.map(([letter, originalCount]) => {
+                const remaining = remainingCounts[letter] || 0;
+                const used = originalCount - remaining;
+                const isFullyUsed = remaining === 0;
+
+                return (
+                  <View key={letter} style={styles.tileItem}>
+                    <View style={[styles.tile, isFullyUsed && styles.tileUsed]}>
+                      <Text style={[styles.letter, isFullyUsed && styles.letterUsed]}>
+                        {letter === 'BLANK' ? '★' : letter}
+                      </Text>
+                      <Text style={[styles.points, isFullyUsed && styles.pointsUsed]}>
+                        {letter === 'BLANK' ? '0' : getLetterPoints(letter)}
+                      </Text>
+                    </View>
+                    <View style={[styles.countBadge, isFullyUsed && styles.countBadgeUsed]}>
+                      <Text style={styles.countText}>
+                        {remaining}/{originalCount}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.countBadge}>
-                    <Text style={styles.countText}>×{count}</Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </ScrollView>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              Letters are drawn from a shared tile bag
+              Shows remaining / total tiles for each letter
             </Text>
           </View>
         </View>
@@ -172,6 +189,18 @@ const styles = StyleSheet.create({
     bottom: 3,
     right: 5,
   },
+  tileUsed: {
+    backgroundColor: '#D1D5DB',
+    borderColor: '#9CA3AF',
+    borderBottomColor: '#6B7280',
+    opacity: 0.6,
+  },
+  letterUsed: {
+    color: '#6B7280',
+  },
+  pointsUsed: {
+    color: '#6B7280',
+  },
   countBadge: {
     backgroundColor: '#10B981',
     paddingHorizontal: 10,
@@ -179,6 +208,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 40,
     alignItems: 'center',
+  },
+  countBadgeUsed: {
+    backgroundColor: '#6B7280',
   },
   countText: {
     color: '#fff',

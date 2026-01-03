@@ -402,6 +402,54 @@ export const gameService = {
     return { success: true };
   },
 
+  async exchangeTiles(gameId: string, playerId: string): Promise<{ success: boolean }> {
+    const gameRef = doc(db, 'games', gameId);
+    const gameSnap = await getDoc(gameRef);
+
+    if (!gameSnap.exists()) {
+      throw new Error('Game not found');
+    }
+
+    const data = gameSnap.data();
+    const game = {
+      id: gameSnap.id,
+      ...data,
+      player1_board: unflattenBoard(data.player1_board || data.board),
+      player2_board: unflattenBoard(data.player2_board || data.board),
+    } as Game;
+
+    const isPlayer1 = game.player1_id === playerId;
+    const currentRack = isPlayer1 ? game.player1_rack : game.player2_rack;
+
+    if (game.shared_tile_bag.length < 7) {
+      throw new Error('Not enough tiles in bag to exchange');
+    }
+
+    const updatedTileBag = [...game.shared_tile_bag, ...currentRack];
+
+    for (let i = updatedTileBag.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [updatedTileBag[i], updatedTileBag[j]] = [updatedTileBag[j], updatedTileBag[i]];
+    }
+
+    const { tiles: newRack, remainingBag } = drawTiles(updatedTileBag, 7);
+
+    const updateData: any = {
+      shared_tile_bag: remainingBag,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isPlayer1) {
+      updateData.player1_rack = newRack;
+    } else {
+      updateData.player2_rack = newRack;
+    }
+
+    await updateDoc(gameRef, updateData);
+
+    return { success: true };
+  },
+
   async submitGame(gameId: string, playerId: string): Promise<void> {
     const gameRef = doc(db, 'games', gameId);
     const gameSnap = await getDoc(gameRef);
