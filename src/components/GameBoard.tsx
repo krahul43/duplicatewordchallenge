@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -11,6 +11,7 @@ interface Props {
   selectedCell?: { row: number; col: number } | null;
   hasSelectedTiles?: boolean;
   onMeasureBoard?: (layout: { x: number; y: number; width: number; height: number }) => void;
+  hoveredCell?: { row: number; col: number } | null;
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -20,14 +21,13 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
 const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
 const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard }: Props) {
+export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard, hoveredCell = null }: Props) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
-  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((event) => {
@@ -70,10 +70,6 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
       });
     }
   }, [onMeasureBoard]);
-
-  const clearHover = useCallback(() => {
-    setHoveredCell(null);
-  }, []);
 
   React.useEffect(() => {
     handleLayout();

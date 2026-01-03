@@ -17,7 +17,7 @@ import { addSelectedTile, clearSelectedTiles, setCurrentGame, setMyRack, setSele
 import { colors, spacing } from '../../src/theme/colors';
 import { Game, GameSummary, Tile } from '../../src/types/game';
 import { validateWordWithDictionary } from '../../src/utils/dictionaryApi';
-import { isBoardEmpty, isValidWord, wordConnectsToBoard, wordCoversCenter } from '../../src/utils/gameLogic';
+import { canPlaceTile, isBoardEmpty, isValidWord, wordConnectsToBoard, wordCoversCenter } from '../../src/utils/gameLogic';
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
@@ -36,6 +36,7 @@ export default function GameScreen() {
   const [pauseRequestShown, setPauseRequestShown] = useState(false);
   const [showTileBag, setShowTileBag] = useState(false);
   const [boardLayout, setBoardLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
 
   useEffect(() => {
     if (!id || typeof id !== 'string' || !profile?.id) return;
@@ -268,19 +269,14 @@ export default function GameScreen() {
     setSelectedCell(null);
   }
 
-  function handleTileDragEnd(tile: Tile, index: number, x: number, y: number) {
+  function handleTileDrag(tile: Tile, index: number, x: number, y: number) {
     if (!currentGame || !boardLayout || !profile?.id) return;
-
-    console.log('Drop coordinates:', { x, y });
-    console.log('Board layout:', boardLayout);
 
     const relativeX = x - boardLayout.x;
     const relativeY = y - boardLayout.y;
 
-    console.log('Relative coordinates:', { relativeX, relativeY });
-
     if (relativeX < 0 || relativeY < 0 || relativeX > boardLayout.width || relativeY > boardLayout.height) {
-      console.log('Drop outside board bounds');
+      setHoveredCell(null);
       return;
     }
 
@@ -291,7 +287,31 @@ export default function GameScreen() {
     const col = Math.floor((relativeX - padding) / CELL_SIZE);
     const row = Math.floor((relativeY - padding) / CELL_SIZE);
 
-    console.log('Calculated cell:', { row, col, CELL_SIZE });
+    if (row >= 0 && row < 15 && col >= 0 && col < 15) {
+      setHoveredCell({ row, col });
+    } else {
+      setHoveredCell(null);
+    }
+  }
+
+  function handleTileDragEnd(tile: Tile, index: number, x: number, y: number) {
+    setHoveredCell(null);
+
+    if (!currentGame || !boardLayout || !profile?.id) return;
+
+    const relativeX = x - boardLayout.x;
+    const relativeY = y - boardLayout.y;
+
+    if (relativeX < 0 || relativeY < 0 || relativeX > boardLayout.width || relativeY > boardLayout.height) {
+      return;
+    }
+
+    const boardSize = Math.min(boardLayout.width, boardLayout.height);
+    const CELL_SIZE = boardSize / 15;
+    const padding = 4;
+
+    const col = Math.floor((relativeX - padding) / CELL_SIZE);
+    const row = Math.floor((relativeY - padding) / CELL_SIZE);
 
     if (row >= 0 && row < 15 && col >= 0 && col < 15) {
       const isPlayer1 = currentGame.player1_id === profile.id;
@@ -300,14 +320,15 @@ export default function GameScreen() {
 
       const existingTile = placedTiles.find(t => t.row === row && t.col === col);
       if (!cell.locked && !existingTile) {
-        console.log('Placing tile at:', { row, col });
+        const canPlace = canPlaceTile(tile, placedTiles, board);
+
+        if (!canPlace) {
+          return;
+        }
+
         setPlacedTiles([...placedTiles, { row, col, letter: tile.letter, points: tile.points }]);
         dispatch(addSelectedTile(tile));
-      } else {
-        console.log('Cell locked or occupied');
       }
-    } else {
-      console.log('Invalid cell coordinates');
     }
   }
 
@@ -677,6 +698,7 @@ export default function GameScreen() {
           selectedCell={selectedCell}
           hasSelectedTiles={selectedTiles.length > 0}
           onMeasureBoard={setBoardLayout}
+          hoveredCell={hoveredCell}
         />
       </View>
 
@@ -719,8 +741,11 @@ export default function GameScreen() {
         <TileRack
           tiles={myRack.length > 0 ? myRack : (currentGame?.shared_rack as Tile[] || [])}
           onTilePress={handleTilePress}
+          onTileDrag={handleTileDrag}
           onTileDragEnd={handleTileDragEnd}
           selectedTiles={selectedTiles}
+          placedTiles={placedTiles}
+          board={(isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board}
         />
 
         <View style={styles.actionsBar}>

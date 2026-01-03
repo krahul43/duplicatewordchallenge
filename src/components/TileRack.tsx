@@ -9,16 +9,20 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { spacing } from '../theme/colors';
-import { Tile } from '../types/game';
+import { BoardCell, Tile } from '../types/game';
+import { canPlaceTile } from '../utils/gameLogic';
 
 interface Props {
   tiles: Tile[];
   onTilePress: (tile: Tile, index: number) => void;
+  onTileDrag?: (tile: Tile, index: number, x: number, y: number) => void;
   onTileDragEnd?: (tile: Tile, index: number, x: number, y: number) => void;
   selectedTiles?: Tile[];
+  placedTiles?: { row: number; col: number; letter: string; points: number }[];
+  board?: BoardCell[][];
 }
 
-export function TileRack({ tiles, onTilePress, onTileDragEnd, selectedTiles = [] }: Props) {
+export function TileRack({ tiles, onTilePress, onTileDrag, onTileDragEnd, selectedTiles = [], placedTiles = [], board }: Props) {
   const testTiles: Tile[] = [
     { letter: 'A', points: 1 },
     { letter: 'B', points: 3 },
@@ -39,14 +43,17 @@ export function TileRack({ tiles, onTilePress, onTileDragEnd, selectedTiles = []
       ) : (
         tilesToShow.map((tile, index) => {
           const isUsed = selectedTiles.some((st) => st === tile);
+          const isDisabled = board ? !canPlaceTile(tile, placedTiles, board) : false;
           return (
             <DraggableTile
               key={index}
               tile={tile}
               index={index}
               onPress={() => onTilePress(tile, index)}
+              onDrag={onTileDrag}
               onDragEnd={onTileDragEnd}
               isUsed={isUsed}
+              isDisabled={isDisabled}
             />
           );
         })
@@ -59,11 +66,13 @@ interface DraggableTileProps {
   tile: Tile;
   index: number;
   onPress: () => void;
+  onDrag?: (tile: Tile, index: number, x: number, y: number) => void;
   onDragEnd?: (tile: Tile, index: number, x: number, y: number) => void;
   isUsed?: boolean;
+  isDisabled?: boolean;
 }
 
-function DraggableTile({ tile, index, onPress, onDragEnd, isUsed = false }: DraggableTileProps) {
+function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false, isDisabled = false }: DraggableTileProps) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -74,6 +83,7 @@ function DraggableTile({ tile, index, onPress, onDragEnd, isUsed = false }: Drag
   const startY = useSharedValue(0);
 
   const pan = Gesture.Pan()
+    .enabled(!isDisabled)
     .onStart((event) => {
       isDragging.value = true;
       startX.value = event.absoluteX;
@@ -85,6 +95,12 @@ function DraggableTile({ tile, index, onPress, onDragEnd, isUsed = false }: Drag
     .onUpdate((event) => {
       translateX.value = event.translationX;
       translateY.value = event.translationY;
+
+      if (onDrag) {
+        const currentX = startX.value + event.translationX;
+        const currentY = startY.value + event.translationY;
+        runOnJS(onDrag)(tile, index, currentX, currentY);
+      }
     })
     .onEnd((event) => {
       isDragging.value = false;
@@ -104,6 +120,7 @@ function DraggableTile({ tile, index, onPress, onDragEnd, isUsed = false }: Drag
     });
 
   const tap = Gesture.Tap()
+    .enabled(!isDisabled)
     .maxDuration(250)
     .onStart(() => {
       if (!isDragging.value) {
@@ -131,9 +148,10 @@ function DraggableTile({ tile, index, onPress, onDragEnd, isUsed = false }: Drag
 
   return (
     <GestureDetector gesture={gesture}>
-      <Animated.View style={[styles.tile, isUsed && styles.tileUsed, animatedStyle]}>
-        <Text style={[styles.letter, isUsed && styles.letterUsed]}>{tile.letter}</Text>
-        <Text style={[styles.points, isUsed && styles.pointsUsed]}>{tile.points}</Text>
+      <Animated.View style={[styles.tile, isUsed && styles.tileUsed, isDisabled && styles.tileDisabled, animatedStyle]}>
+        {isDisabled && <View style={styles.disabledOverlay} />}
+        <Text style={[styles.letter, isUsed && styles.letterUsed, isDisabled && styles.letterDisabled]}>{tile.letter}</Text>
+        <Text style={[styles.points, isUsed && styles.pointsUsed, isDisabled && styles.pointsDisabled]}>{tile.points}</Text>
       </Animated.View>
     </GestureDetector>
   );
@@ -198,6 +216,28 @@ const styles = StyleSheet.create({
   },
   pointsUsed: {
     opacity: 0.6,
+  },
+  tileDisabled: {
+    backgroundColor: '#9E9E9E',
+    borderBottomColor: '#757575',
+    opacity: 0.6,
+  },
+  disabledOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(100, 100, 100, 0.4)',
+    borderRadius: 10,
+  },
+  letterDisabled: {
+    color: '#4A4A4A',
+    opacity: 0.7,
+  },
+  pointsDisabled: {
+    color: '#4A4A4A',
+    opacity: 0.7,
   },
   emptyMessage: {
     color: '#fff',

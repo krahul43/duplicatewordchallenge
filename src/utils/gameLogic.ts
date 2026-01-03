@@ -1,4 +1,4 @@
-import { BoardCell, Tile, TileType, Placement } from '../types/game';
+import { BoardCell, Placement, Tile, TileType } from '../types/game';
 
 const LETTER_SCORES: Record<string, number> = {
   A: 1, B: 3, C: 3, D: 2, E: 1, F: 4, G: 2, H: 4, I: 1, J: 8,
@@ -11,6 +11,58 @@ const LETTER_DISTRIBUTION: Record<string, number> = {
   K: 1, L: 4, M: 2, N: 6, O: 8, P: 2, Q: 1, R: 6, S: 4, T: 6,
   U: 4, V: 2, W: 2, X: 1, Y: 2, Z: 1, BLANK: 2
 };
+
+export function getLetterDistribution(): Record<string, number> {
+  return { ...LETTER_DISTRIBUTION };
+}
+
+export function checkTileAvailability(
+  letter: string,
+  playerRack: Tile[],
+  placedTiles: Placement[],
+  lockedBoard: BoardCell[][]
+): boolean {
+  const maxCount = LETTER_DISTRIBUTION[letter] || 0;
+  if (maxCount === 0) return false;
+
+  const rackCount = playerRack.filter(t => t.letter === letter).length;
+  const placedCount = placedTiles.filter(t => t.letter === letter).length;
+
+  let lockedCount = 0;
+  for (const row of lockedBoard) {
+    for (const cell of row) {
+      if (cell.letter === letter && cell.locked) {
+        lockedCount++;
+      }
+    }
+  }
+
+  const totalUsed = rackCount + placedCount + lockedCount;
+  return totalUsed <= maxCount;
+}
+
+export function canPlaceTile(
+  tile: Tile,
+  placedTiles: Placement[],
+  lockedBoard: BoardCell[][]
+): boolean {
+  const maxCount = LETTER_DISTRIBUTION[tile.letter] || 0;
+  if (maxCount === 0) return false;
+
+  const alreadyPlaced = placedTiles.filter(t => t.letter === tile.letter).length;
+
+  let lockedCount = 0;
+  for (const row of lockedBoard) {
+    for (const cell of row) {
+      if (cell.letter === tile.letter && cell.locked) {
+        lockedCount++;
+      }
+    }
+  }
+
+  const totalUsedOnBoard = alreadyPlaced + lockedCount;
+  return totalUsedOnBoard < maxCount;
+}
 
 export function initializeBoard(): BoardCell[][] {
   const board: BoardCell[][] = [];
