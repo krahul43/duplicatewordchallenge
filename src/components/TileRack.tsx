@@ -6,6 +6,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { spacing } from '../theme/colors';
 import { Tile } from '../types/game';
@@ -13,11 +14,11 @@ import { Tile } from '../types/game';
 interface Props {
   tiles: Tile[];
   onTilePress: (tile: Tile, index: number) => void;
+  onTileDragEnd?: (tile: Tile, index: number, x: number, y: number) => void;
   selectedTiles?: Tile[];
 }
 
-export function TileRack({ tiles, onTilePress, selectedTiles = [] }: Props) {
-  // Temporary test data
+export function TileRack({ tiles, onTilePress, onTileDragEnd, selectedTiles = [] }: Props) {
   const testTiles: Tile[] = [
     { letter: 'A', points: 1 },
     { letter: 'B', points: 3 },
@@ -39,10 +40,12 @@ export function TileRack({ tiles, onTilePress, selectedTiles = [] }: Props) {
         tilesToShow.map((tile, index) => {
           const isUsed = selectedTiles.some((st) => st === tile);
           return (
-            <TileComponent
+            <DraggableTile
               key={index}
               tile={tile}
+              index={index}
               onPress={() => onTilePress(tile, index)}
+              onDragEnd={onTileDragEnd}
               isUsed={isUsed}
             />
           );
@@ -52,30 +55,82 @@ export function TileRack({ tiles, onTilePress, selectedTiles = [] }: Props) {
   );
 }
 
-interface TileProps {
+interface DraggableTileProps {
   tile: Tile;
+  index: number;
   onPress: () => void;
+  onDragEnd?: (tile: Tile, index: number, x: number, y: number) => void;
   isUsed?: boolean;
 }
 
-function TileComponent({ tile, onPress, isUsed = false }: TileProps) {
+function DraggableTile({ tile, index, onPress, onDragEnd, isUsed = false }: DraggableTileProps) {
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
+  const zIndex = useSharedValue(0);
+  const opacity = useSharedValue(1);
+  const isDragging = useSharedValue(false);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
 
-  const tap = Gesture.Tap()
-    .onBegin(() => {
-      scale.value = withSpring(0.9);
+  const pan = Gesture.Pan()
+    .onStart((event) => {
+      isDragging.value = true;
+      startX.value = event.absoluteX;
+      startY.value = event.absoluteY;
+      scale.value = withSpring(1.3);
+      zIndex.value = 1000;
+      opacity.value = withTiming(0.85);
     })
-    .onFinalize(() => {
+    .onUpdate((event) => {
+      translateX.value = event.translationX;
+      translateY.value = event.translationY;
+    })
+    .onEnd((event) => {
+      isDragging.value = false;
+      const wasDragged = Math.abs(event.translationX) > 30 || Math.abs(event.translationY) > 30;
+
+      if (onDragEnd && wasDragged) {
+        const finalX = startX.value + event.translationX;
+        const finalY = startY.value + event.translationY;
+        runOnJS(onDragEnd)(tile, index, finalX, finalY);
+      }
+
+      translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+      translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
       scale.value = withSpring(1);
-      runOnJS(onPress)();
+      zIndex.value = 0;
+      opacity.value = withTiming(1);
     });
 
+  const tap = Gesture.Tap()
+    .maxDuration(250)
+    .onStart(() => {
+      if (!isDragging.value) {
+        scale.value = withSpring(0.85);
+      }
+    })
+    .onEnd(() => {
+      if (!isDragging.value) {
+        scale.value = withSpring(1);
+        runOnJS(onPress)();
+      }
+    });
+
+  const gesture = Gesture.Exclusive(pan, tap);
+
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+    zIndex: zIndex.value,
+    opacity: opacity.value,
   }));
 
   return (
-    <GestureDetector gesture={tap}>
+    <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.tile, isUsed && styles.tileUsed, animatedStyle]}>
         <Text style={[styles.letter, isUsed && styles.letterUsed]}>{tile.letter}</Text>
         <Text style={[styles.points, isUsed && styles.pointsUsed]}>{tile.points}</Text>
@@ -106,10 +161,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 12,
     borderWidth: 1,
     borderColor: '#E8D4B0',
     borderBottomWidth: 5,

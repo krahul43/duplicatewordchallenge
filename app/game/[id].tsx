@@ -35,6 +35,7 @@ export default function GameScreen() {
   const [opponentProfile, setOpponentProfile] = useState<{ displayName: string; id: string } | null>(null);
   const [pauseRequestShown, setPauseRequestShown] = useState(false);
   const [showTileBag, setShowTileBag] = useState(false);
+  const [boardLayout, setBoardLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   useEffect(() => {
     if (!id || typeof id !== 'string' || !profile?.id) return;
@@ -265,6 +266,49 @@ export default function GameScreen() {
     dispatch(clearSelectedTiles());
     setPlacedTiles([]);
     setSelectedCell(null);
+  }
+
+  function handleTileDragEnd(tile: Tile, index: number, x: number, y: number) {
+    if (!currentGame || !boardLayout || !profile?.id) return;
+
+    console.log('Drop coordinates:', { x, y });
+    console.log('Board layout:', boardLayout);
+
+    const relativeX = x - boardLayout.x;
+    const relativeY = y - boardLayout.y;
+
+    console.log('Relative coordinates:', { relativeX, relativeY });
+
+    if (relativeX < 0 || relativeY < 0 || relativeX > boardLayout.width || relativeY > boardLayout.height) {
+      console.log('Drop outside board bounds');
+      return;
+    }
+
+    const boardSize = Math.min(boardLayout.width, boardLayout.height);
+    const CELL_SIZE = boardSize / 15;
+    const padding = 4;
+
+    const col = Math.floor((relativeX - padding) / CELL_SIZE);
+    const row = Math.floor((relativeY - padding) / CELL_SIZE);
+
+    console.log('Calculated cell:', { row, col, CELL_SIZE });
+
+    if (row >= 0 && row < 15 && col >= 0 && col < 15) {
+      const isPlayer1 = currentGame.player1_id === profile.id;
+      const board = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
+      const cell = board[row][col];
+
+      const existingTile = placedTiles.find(t => t.row === row && t.col === col);
+      if (!cell.locked && !existingTile) {
+        console.log('Placing tile at:', { row, col });
+        setPlacedTiles([...placedTiles, { row, col, letter: tile.letter, points: tile.points }]);
+        dispatch(addSelectedTile(tile));
+      } else {
+        console.log('Cell locked or occupied');
+      }
+    } else {
+      console.log('Invalid cell coordinates');
+    }
   }
 
   function handleBoardCellPress(row: number, col: number) {
@@ -632,6 +676,7 @@ export default function GameScreen() {
           placedTiles={placedTiles}
           selectedCell={selectedCell}
           hasSelectedTiles={selectedTiles.length > 0}
+          onMeasureBoard={setBoardLayout}
         />
       </View>
 
@@ -674,6 +719,7 @@ export default function GameScreen() {
         <TileRack
           tiles={myRack.length > 0 ? myRack : (currentGame?.shared_rack as Tile[] || [])}
           onTilePress={handleTilePress}
+          onTileDragEnd={handleTileDragEnd}
           selectedTiles={selectedTiles}
         />
 

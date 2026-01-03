@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -10,6 +10,7 @@ interface Props {
   placedTiles?: { row: number; col: number; letter: string; points: number }[];
   selectedCell?: { row: number; col: number } | null;
   hasSelectedTiles?: boolean;
+  onMeasureBoard?: (layout: { x: number; y: number; width: number; height: number }) => void;
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -19,13 +20,14 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
 const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
 const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false }: Props) {
+export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard }: Props) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
+  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((event) => {
@@ -36,6 +38,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
     });
 
   const panGesture = Gesture.Pan()
+    .minPointers(2)
     .onUpdate((event) => {
       if (scale.value > 1) {
         const maxTranslate = ((scale.value - 1) * MAX_SIZE) / 2;
@@ -48,7 +51,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
       savedTranslateY.value = translateY.value;
     });
 
-  const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+  const composedGesture = Gesture.Race(pinchGesture, panGesture);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -58,15 +61,38 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
     ],
   }));
 
+  const boardRef = React.useRef<any>(null);
+
+  const handleLayout = useCallback(() => {
+    if (onMeasureBoard && boardRef.current) {
+      boardRef.current.measureInWindow((x: number, y: number, width: number, height: number) => {
+        onMeasureBoard({ x, y, width, height });
+      });
+    }
+  }, [onMeasureBoard]);
+
+  const clearHover = useCallback(() => {
+    setHoveredCell(null);
+  }, []);
+
+  React.useEffect(() => {
+    handleLayout();
+  }, [handleLayout]);
+
   return (
     <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[styles.boardWrapper, animatedStyle]}>
+      <Animated.View
+        ref={boardRef}
+        style={[styles.boardWrapper, animatedStyle]}
+        onLayout={handleLayout}
+      >
         <View style={styles.container}>
           {board.map((row, rowIndex) => (
             <View key={rowIndex} style={styles.row}>
               {row.map((cell, colIndex) => {
                 const placedTile = placedTiles.find(t => t.row === rowIndex && t.col === colIndex);
                 const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
+                const isHovered = hoveredCell?.row === rowIndex && hoveredCell?.col === colIndex;
                 const canPlace = hasSelectedTiles && !cell.locked && !placedTile;
                 return (
                   <BoardCell
@@ -77,6 +103,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
                     onPress={onCellPress}
                     placedTile={placedTile}
                     isSelected={isSelected}
+                    isHovered={isHovered}
                     canPlace={canPlace}
                   />
                 );
@@ -96,11 +123,21 @@ interface BoardCellProps {
   onPress?: (row: number, col: number) => void;
   placedTile?: { letter: string; points: number };
   isSelected?: boolean;
+  isHovered?: boolean;
   canPlace?: boolean;
 }
 
-function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, canPlace }: BoardCellProps) {
+function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, isHovered, canPlace }: BoardCellProps) {
   const scale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0);
+
+  React.useEffect(() => {
+    if (isHovered && canPlace) {
+      glowOpacity.value = withSpring(1);
+    } else {
+      glowOpacity.value = withSpring(0);
+    }
+  }, [isHovered, canPlace]);
 
   const cellStyle = [
     styles.cell,
@@ -123,6 +160,10 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
     transform: [{ scale: scale.value }],
   }));
 
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
+
   return (
     <TouchableOpacity
       onPress={handlePress}
@@ -130,6 +171,9 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
       activeOpacity={0.7}
     >
       <Animated.View style={[cellStyle, animatedStyle]}>
+        {canPlace && isHovered && (
+          <Animated.View style={[styles.dropGlow, glowStyle]} />
+        )}
         {placedTile ? (
           <View style={styles.tileContainer}>
             <Text style={styles.letter}>{placedTile.letter}</Text>
@@ -235,6 +279,16 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
     opacity: 0.8,
+  },
+  dropGlow: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    backgroundColor: '#10B981',
+    borderRadius: 8,
+    opacity: 0.3,
   },
   tileContainer: {
     width: '100%',
