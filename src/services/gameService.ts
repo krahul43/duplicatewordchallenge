@@ -320,6 +320,32 @@ export const gameService = {
     });
   },
 
+  subscribeToPlayerGames(playerId: string, callback: (games: Game[]) => void): Unsubscribe {
+    const gamesRef = collection(db, 'games');
+    const q = query(
+      gamesRef,
+      or(
+        where('player1_id', '==', playerId),
+        where('player2_id', '==', playerId)
+      ),
+      orderBy('updated_at', 'desc')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      const games: Game[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        games.push({
+          id: doc.id,
+          ...data,
+          player1_board: unflattenBoard(data.player1_board || data.board),
+          player2_board: unflattenBoard(data.player2_board || data.board),
+        } as Game);
+      });
+      callback(games);
+    });
+  },
+
   async submitMove(
     gameId: string,
     playerId: string,

@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Calendar, Clock, Crown, Play, Trophy, User, Users } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { gameService } from '../../src/services/gameService';
 import { RootState } from '../../src/store';
@@ -17,7 +17,39 @@ export default function GamesScreen() {
 
   useEffect(() => {
     if (!profile?.id) return;
+
     loadGames();
+
+    const unsubscribe = gameService.subscribeToPlayerGames(profile.id, (games) => {
+      const now = Date.now();
+
+      const active = games.filter(g => {
+        if (g.status === 'playing' || g.status === 'paused') {
+          return true;
+        }
+
+        if (g.status === 'waiting') {
+          if (g.join_code_expires_at) {
+            const expiresAt = new Date(g.join_code_expires_at).getTime();
+            return now <= expiresAt;
+          }
+          return true;
+        }
+
+        return false;
+      });
+
+      const completed = games.filter(g =>
+        g.status === 'finished'
+      );
+
+      setActiveGames(active);
+      setCompletedGames(completed);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [profile?.id]);
 
   async function loadGames() {
@@ -297,6 +329,14 @@ export default function GamesScreen() {
           </View>
         )}
 
+        {/* Loading State */}
+        {loading && activeGames.length === 0 && completedGames.length === 0 && (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.loadingText}>Loading your games...</Text>
+          </View>
+        )}
+
         {/* Empty State */}
         {activeGames.length === 0 && completedGames.length === 0 && !loading && (
           <View style={styles.emptyState}>
@@ -545,6 +585,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.9)',
+  },
+  loadingState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 16,
   },
   emptyState: {
     alignItems: 'center',

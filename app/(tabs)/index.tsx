@@ -27,6 +27,23 @@ export default function HomeScreen() {
 
     loadLastActiveGame();
 
+    const unsubscribe = gameService.subscribeToPlayerGames(profile.id, (games) => {
+      const activeGames = games.filter(g =>
+        g.status === 'playing' || g.status === 'paused'
+      );
+
+      if (activeGames.length > 0) {
+        const sortedGames = activeGames.sort((a, b) => {
+          const dateA = new Date(a.updated_at || a.created_at).getTime();
+          const dateB = new Date(b.updated_at || b.created_at).getTime();
+          return dateB - dateA;
+        });
+        setLastActiveGame(sortedGames[0]);
+      } else {
+        setLastActiveGame(null);
+      }
+    });
+
     if (profile?.display_name) {
       presenceService.setUserOnline(profile.id, profile.display_name)
         .then(() => setPresenceReady(true))
@@ -37,6 +54,7 @@ export default function HomeScreen() {
     }
 
     return () => {
+      unsubscribe();
       if (profile?.id) {
         presenceService.setUserOffline(profile.id).catch(() => {});
       }
@@ -220,9 +238,33 @@ export default function HomeScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.bannerGradient}
             >
-              <Play size={20} color="#fff" fill="#fff" />
-              <Text style={styles.bannerText}>Resume Your Game</Text>
-              <Sparkles size={18} color="#fff" />
+              <View style={styles.bannerIconContainer}>
+                <Play size={22} color="#fff" fill="#fff" />
+              </View>
+              <View style={styles.bannerContent}>
+                <Text style={styles.bannerTitle}>Resume Your Game</Text>
+                <View style={styles.bannerDetails}>
+                  <Text style={styles.bannerOpponent}>
+                    vs {lastActiveGame.player1_id === profile?.id
+                      ? (lastActiveGame.player2_display_name || 'Waiting...')
+                      : (lastActiveGame.player1_display_name || 'Opponent')}
+                  </Text>
+                  <View style={styles.bannerScores}>
+                    <Text style={styles.bannerScore}>
+                      {lastActiveGame.player1_id === profile?.id
+                        ? lastActiveGame.player1_score || 0
+                        : lastActiveGame.player2_score || 0}
+                    </Text>
+                    <Text style={styles.bannerScoreDivider}>-</Text>
+                    <Text style={styles.bannerScore}>
+                      {lastActiveGame.player1_id === profile?.id
+                        ? lastActiveGame.player2_score || 0
+                        : lastActiveGame.player1_score || 0}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Sparkles size={20} color="#fff" />
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -310,7 +352,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.buttonTextContainer}>
                 <Text style={styles.buttonTitle}>Join with Code</Text>
-                <Text style={styles.buttonSubtitle}>Enter friend's game code</Text>
+                <Text style={styles.buttonSubtitle}>Enter friend&apos;s game code</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
@@ -342,16 +384,55 @@ const styles = StyleSheet.create({
   bannerGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 18,
     paddingHorizontal: 20,
     gap: 12,
   },
-  bannerText: {
-    fontSize: 17,
+  bannerIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerContent: {
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 16,
     fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  bannerDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bannerOpponent: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  bannerScores: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  bannerScore: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  bannerScoreDivider: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   logoContainer: {
     alignItems: 'center',
