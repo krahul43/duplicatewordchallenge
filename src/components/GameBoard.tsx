@@ -3,6 +3,7 @@ import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from '
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { BoardCell as BoardCellType } from '../types/game';
+import { FormedWord } from '../utils/gameLogic';
 
 interface Props {
   board: BoardCellType[][];
@@ -12,6 +13,7 @@ interface Props {
   hasSelectedTiles?: boolean;
   onMeasureBoard?: (layout: { x: number; y: number; width: number; height: number }) => void;
   hoveredCell?: { row: number; col: number } | null;
+  formedWords?: FormedWord[];
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -21,7 +23,7 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
 const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
 const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard, hoveredCell = null }: Props) {
+export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard, hoveredCell = null, formedWords = [] }: Props) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -90,6 +92,12 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
                 const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
                 const isHovered = hoveredCell?.row === rowIndex && hoveredCell?.col === colIndex;
                 const canPlace = hasSelectedTiles && !cell.locked && !placedTile;
+
+                const wordsAtCell = formedWords.filter(word =>
+                  word.cells.some(c => c.row === rowIndex && c.col === colIndex)
+                );
+                const wordColor = wordsAtCell.length > 0 ? wordsAtCell[0].color : undefined;
+
                 return (
                   <BoardCell
                     key={`${rowIndex}-${colIndex}`}
@@ -101,6 +109,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
                     isSelected={isSelected}
                     isHovered={isHovered}
                     canPlace={canPlace}
+                    wordColor={wordColor}
                   />
                 );
               })}
@@ -121,9 +130,10 @@ interface BoardCellProps {
   isSelected?: boolean;
   isHovered?: boolean;
   canPlace?: boolean;
+  wordColor?: string;
 }
 
-function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, isHovered, canPlace }: BoardCellProps) {
+function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, isHovered, canPlace, wordColor }: BoardCellProps) {
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
 
@@ -137,7 +147,7 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
 
   const cellStyle = [
     styles.cell,
-    getCellBackgroundStyle(cell),
+    wordColor && (cell.locked || placedTile) ? { backgroundColor: wordColor } : getCellBackgroundStyle(cell),
     isSelected && styles.selectedCell,
     placedTile && styles.cellWithNewTile,
     canPlace && styles.cellCanPlace,

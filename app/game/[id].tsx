@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { ChevronLeft, Flag, Package, Pause, Play, Shuffle, X } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { GameBoard } from '../../src/components/GameBoard';
@@ -17,7 +17,7 @@ import { addSelectedTile, clearSelectedTiles, setCurrentGame, setMyRack, setSele
 import { colors, spacing } from '../../src/theme/colors';
 import { Game, GameSummary, Tile } from '../../src/types/game';
 import { validateWordWithDictionary } from '../../src/utils/dictionaryApi';
-import { canPlaceTile, isBoardEmpty, isValidWord, wordConnectsToBoard, wordCoversCenter } from '../../src/utils/gameLogic';
+import { canPlaceTile, getAllFormedWords, isBoardEmpty, isValidWord, wordConnectsToBoard, wordCoversCenter } from '../../src/utils/gameLogic';
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
@@ -37,6 +37,14 @@ export default function GameScreen() {
   const [showTileBag, setShowTileBag] = useState(false);
   const [boardLayout, setBoardLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+
+  const isPlayer1 = currentGame?.player1_id === profile?.id;
+  const currentBoard = currentGame ? ((isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board) : [];
+
+  const formedWords = useMemo(() => {
+    if (!currentGame || currentBoard.length === 0) return [];
+    return getAllFormedWords(currentBoard, placedTiles);
+  }, [currentGame, currentBoard, placedTiles]);
 
   useEffect(() => {
     if (!id || typeof id !== 'string' || !profile?.id) return;
@@ -400,7 +408,40 @@ export default function GameScreen() {
       }
     }
 
-    const word = placedTiles.map(t => t.letter).join('');
+    let word = '';
+    if (isHorizontal) {
+      const row = placedTiles[0].row;
+      const minCol = Math.min(...placedTiles.map(t => t.col));
+      const maxCol = Math.max(...placedTiles.map(t => t.col));
+
+      for (let col = minCol; col <= maxCol; col++) {
+        const placedTile = placedTiles.find(t => t.col === col);
+        if (placedTile) {
+          word += placedTile.letter;
+        } else if (myBoard[row][col].letter) {
+          word += myBoard[row][col].letter;
+        } else {
+          Alert.alert('Invalid Placement', 'Tiles must be placed consecutively');
+          return;
+        }
+      }
+    } else {
+      const col = placedTiles[0].col;
+      const minRow = Math.min(...placedTiles.map(t => t.row));
+      const maxRow = Math.max(...placedTiles.map(t => t.row));
+
+      for (let row = minRow; row <= maxRow; row++) {
+        const placedTile = placedTiles.find(t => t.row === row);
+        if (placedTile) {
+          word += placedTile.letter;
+        } else if (myBoard[row][col].letter) {
+          word += myBoard[row][col].letter;
+        } else {
+          Alert.alert('Invalid Placement', 'Tiles must be placed consecutively');
+          return;
+        }
+      }
+    }
 
     if (!isValidWord(word)) {
       Alert.alert('Invalid Word', `"${word}" is not a valid word`);
@@ -530,7 +571,6 @@ export default function GameScreen() {
     );
   }
 
-  const isPlayer1 = currentGame.player1_id === profile?.id;
   const myRackFromGame = isPlayer1 ? currentGame.player1_rack : currentGame.player2_rack;
 
   // Check if this is an old game with the old schema
@@ -597,6 +637,50 @@ export default function GameScreen() {
   const myScore = currentGame.player1_id === profile?.id ? currentGame.player1_score : currentGame.player2_score;
   const opponentScore = currentGame.player1_id === profile?.id ? currentGame.player2_score : currentGame.player1_score;
 
+  const getCurrentWord = () => {
+    if (placedTiles.length === 0 || !currentGame) return '';
+
+    const myBoard = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
+
+    const sortedTiles = [...placedTiles].sort((a, b) => {
+      if (a.row === b.row) return a.col - b.col;
+      return a.row - b.row;
+    });
+
+    const isHorizontal = placedTiles.every(t => t.row === placedTiles[0].row);
+
+    let word = '';
+    if (isHorizontal) {
+      const row = sortedTiles[0].row;
+      const minCol = Math.min(...sortedTiles.map(t => t.col));
+      const maxCol = Math.max(...sortedTiles.map(t => t.col));
+
+      for (let col = minCol; col <= maxCol; col++) {
+        const placedTile = sortedTiles.find(t => t.col === col);
+        if (placedTile) {
+          word += placedTile.letter;
+        } else if (myBoard[row] && myBoard[row][col] && myBoard[row][col].letter) {
+          word += myBoard[row][col].letter;
+        }
+      }
+    } else {
+      const col = sortedTiles[0].col;
+      const minRow = Math.min(...sortedTiles.map(t => t.row));
+      const maxRow = Math.max(...sortedTiles.map(t => t.row));
+
+      for (let row = minRow; row <= maxRow; row++) {
+        const placedTile = sortedTiles.find(t => t.row === row);
+        if (placedTile) {
+          word += placedTile.letter;
+        } else if (myBoard[row] && myBoard[row][col] && myBoard[row][col].letter) {
+          word += myBoard[row][col].letter;
+        }
+      }
+    }
+
+    return word;
+  };
+
   const calculatePlacedScore = () => {
     if (placedTiles.length === 0 || !currentGame) return 0;
 
@@ -605,6 +689,7 @@ export default function GameScreen() {
     return calcScore(placedTiles, myBoard);
   };
 
+  const currentWord = getCurrentWord();
   const totalScore = calculatePlacedScore();
 
   const formatTime = (seconds: number) => {
@@ -699,6 +784,7 @@ export default function GameScreen() {
           hasSelectedTiles={selectedTiles.length > 0}
           onMeasureBoard={setBoardLayout}
           hoveredCell={hoveredCell}
+          formedWords={formedWords}
         />
       </View>
 
@@ -731,7 +817,7 @@ export default function GameScreen() {
             ) : (
               <View style={styles.currentWordContainer}>
                 <Text style={styles.currentWordLabel}>Current Word:</Text>
-                <Text style={styles.currentWord}>{placedTiles.map(t => t.letter).join('')}</Text>
+                <Text style={styles.currentWord}>{currentWord}</Text>
                 <Text style={styles.currentScore}>{totalScore} points</Text>
               </View>
             )}

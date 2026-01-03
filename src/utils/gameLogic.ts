@@ -286,6 +286,120 @@ export function wordCoversCenter(placements: { row: number; col: number }[]): bo
   return placements.some(p => p.row === 7 && p.col === 7);
 }
 
+export interface FormedWord {
+  word: string;
+  startRow: number;
+  startCol: number;
+  direction: 'horizontal' | 'vertical';
+  cells: { row: number; col: number }[];
+  color: string;
+}
+
+export function getAllFormedWords(
+  board: BoardCell[][],
+  placedTiles: Placement[]
+): FormedWord[] {
+  const words: FormedWord[] = [];
+  const wordColors = ['#FFB84D', '#FF9D4D', '#FFA84D', '#FFD64D', '#FFAA4D'];
+  let colorIndex = 0;
+
+  const fullBoard = board.map(row => row.map(cell => ({ ...cell })));
+  for (const placement of placedTiles) {
+    if (placement.row >= 0 && placement.row < 15 && placement.col >= 0 && placement.col < 15) {
+      fullBoard[placement.row][placement.col] = {
+        ...fullBoard[placement.row][placement.col],
+        letter: placement.letter,
+      };
+    }
+  }
+
+  for (let row = 0; row < 15; row++) {
+    let currentWord = '';
+    let startCol = -1;
+    const cells: { row: number; col: number }[] = [];
+
+    for (let col = 0; col < 15; col++) {
+      const cell = fullBoard[row][col];
+      if (cell.letter) {
+        if (currentWord === '') {
+          startCol = col;
+        }
+        currentWord += cell.letter;
+        cells.push({ row, col });
+      } else {
+        if (currentWord.length >= 2) {
+          words.push({
+            word: currentWord,
+            startRow: row,
+            startCol,
+            direction: 'horizontal',
+            cells: [...cells],
+            color: wordColors[colorIndex % wordColors.length],
+          });
+          colorIndex++;
+        }
+        currentWord = '';
+        cells.length = 0;
+      }
+    }
+    if (currentWord.length >= 2) {
+      words.push({
+        word: currentWord,
+        startRow: row,
+        startCol,
+        direction: 'horizontal',
+        cells: [...cells],
+        color: wordColors[colorIndex % wordColors.length],
+      });
+      colorIndex++;
+    }
+  }
+
+  for (let col = 0; col < 15; col++) {
+    let currentWord = '';
+    let startRow = -1;
+    const cells: { row: number; col: number }[] = [];
+
+    for (let row = 0; row < 15; row++) {
+      const cell = fullBoard[row][col];
+      if (cell.letter) {
+        if (currentWord === '') {
+          startRow = row;
+        }
+        currentWord += cell.letter;
+        cells.push({ row, col });
+      } else {
+        if (currentWord.length >= 2) {
+          words.push({
+            word: currentWord,
+            startRow,
+            startCol: col,
+            direction: 'vertical',
+            cells: [...cells],
+            color: wordColors[colorIndex % wordColors.length],
+          });
+          colorIndex++;
+        }
+        currentWord = '';
+        cells.length = 0;
+      }
+    }
+    if (currentWord.length >= 2) {
+      words.push({
+        word: currentWord,
+        startRow,
+        startCol: col,
+        direction: 'vertical',
+        cells: [...cells],
+        color: wordColors[colorIndex % wordColors.length],
+      });
+      colorIndex++;
+    }
+  }
+
+  return words;
+}
+
 export function wordConnectsToBoard(
   placements: { row: number; col: number }[],
   board: BoardCell[][]
