@@ -281,7 +281,6 @@ export default function GameScreen() {
     setLoading(true);
     try {
       await gameService.exchangeTiles(id, profile.id);
-      Alert.alert('Success', 'Tiles exchanged successfully!');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to exchange tiles');
     } finally {

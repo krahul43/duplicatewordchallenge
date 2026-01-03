@@ -369,13 +369,14 @@ export const gameService = {
       return true;
     });
 
-    const { tiles: drawnTiles } = drawTiles(game.shared_tile_bag, Math.min(tilesUsed, game.shared_tile_bag.length));
+    const { tiles: drawnTiles, remainingBag } = drawTiles(game.shared_tile_bag, Math.min(tilesUsed, game.shared_tile_bag.length));
     const updatedRack = [...newRack, ...drawnTiles];
 
     const newScore = (isPlayer1 ? game.player1_score : game.player2_score) + score;
 
     const updateData: any = {
       [boardKey]: flattenBoard(newBoard),
+      shared_tile_bag: remainingBag,
       updated_at: new Date().toISOString(),
     };
 
