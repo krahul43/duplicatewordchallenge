@@ -343,9 +343,6 @@ export default function GameScreen() {
     const col = Math.floor(cellX);
     const row = Math.floor(cellY);
 
-    const cellCenterOffsetX = Math.abs(cellX - col - 0.5);
-    const cellCenterOffsetY = Math.abs(cellY - row - 0.5);
-
     if (row >= 0 && row < 15 && col >= 0 && col < 15) {
       const isPlayer1 = currentGame.player1_id === profile.id;
       const board = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
@@ -355,11 +352,7 @@ export default function GameScreen() {
       if (!cell.locked && !existingTile) {
         const canPlace = canPlaceTile(tile, placedTiles, board);
 
-        if (!canPlace) {
-          return;
-        }
-
-        if (cellCenterOffsetX < 0.45 && cellCenterOffsetY < 0.45) {
+        if (canPlace) {
           setPlacedTiles([...placedTiles, { row, col, letter: tile.letter, points: tile.points }]);
           setFocusCell({ row, col });
           setTimeout(() => setFocusCell(null), 700);
@@ -736,6 +729,7 @@ export default function GameScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        scrollEnabled={false}
       >
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -933,8 +927,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#66BB6A',
   },
   scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 40,
+    flex: 1,
   },
   loading: {
     flex: 1,
@@ -1131,7 +1124,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
-    marginVertical: spacing.xs,
+    minHeight: 400,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
   },
   bottomSection: {
     backgroundColor: 'rgba(255,255,255,0.1)',

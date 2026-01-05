@@ -28,9 +28,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
   const savedTranslateX = useSharedValue(0);
-  const savedTranslateY = useSharedValue(0);
 
   React.useEffect(() => {
     if (focusCell) {
