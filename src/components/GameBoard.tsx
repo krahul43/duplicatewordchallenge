@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { BoardCell as BoardCellType } from '../types/game';
 import { FormedWord } from '../utils/gameLogic';
 
@@ -37,10 +37,10 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
       const cellCenterX = (focusCell.col - 7.5) * CELL_SIZE;
 
       const targetScale = 1.15;
-      scale.value = withSpring(targetScale, { damping: 18, stiffness: 100 });
+      scale.value = withTiming(targetScale, { duration: 200, easing: Easing.out(Easing.ease) });
       savedScale.value = targetScale;
 
-      translateX.value = withSpring(-cellCenterX * 0.15, { damping: 18, stiffness: 100 });
+      translateX.value = withTiming(-cellCenterX * 0.15, { duration: 200, easing: Easing.out(Easing.ease) });
       savedTranslateX.value = -cellCenterX * 0.15;
     }
   }, [focusCell]);
@@ -187,9 +187,9 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
 
   React.useEffect(() => {
     if (isHovered && canPlace) {
-      glowOpacity.value = withSpring(1);
+      glowOpacity.value = withTiming(1, { duration: 150 });
     } else {
-      glowOpacity.value = withSpring(0);
+      glowOpacity.value = withTiming(0, { duration: 150 });
     }
   }, [isHovered, canPlace]);
 
@@ -213,7 +213,7 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
       isDragging.value = true;
       startX.value = event.absoluteX;
       startY.value = event.absoluteY;
-      tileScale.value = withSpring(1.2, { damping: 15, stiffness: 250 });
+      tileScale.value = 1.1;
     })
     .onUpdate((event) => {
       tileTranslateX.value = event.translationX;
@@ -236,9 +236,9 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
         runOnJS(onTileDragEndFromBoard)(tileData, finalX, finalY);
       }
 
-      tileTranslateX.value = withSpring(0, { damping: 18, stiffness: 160 });
-      tileTranslateY.value = withSpring(0, { damping: 18, stiffness: 160 });
-      tileScale.value = withSpring(1, { damping: 14, stiffness: 200 });
+      tileTranslateX.value = 0;
+      tileTranslateY.value = 0;
+      tileScale.value = 1;
     });
 
   const animatedStyle = useAnimatedStyle(() => ({

@@ -5,7 +5,6 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { spacing } from '../theme/colors';
@@ -107,9 +106,9 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
       shouldHide.value = false;
       startX.value = event.absoluteX;
       startY.value = event.absoluteY;
-      scale.value = withSpring(1.3, { damping: 15, stiffness: 250 });
+      scale.value = 1.1;
       zIndex.value = 1000;
-      opacity.value = withTiming(0.95, { duration: 100 });
+      opacity.value = 0.95;
     })
     .onUpdate((event) => {
       translateX.value = event.translationX;
@@ -140,12 +139,12 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
 
       if (placedSuccessfully) {
         opacity.value = withTiming(0, { duration: 200 });
-        scale.value = withSpring(0.8, { damping: 15, stiffness: 200 });
+        scale.value = 0.8;
       } else {
-        translateX.value = withSpring(0, { damping: 18, stiffness: 160 });
-        translateY.value = withSpring(0, { damping: 18, stiffness: 160 });
-        scale.value = withSpring(1, { damping: 14, stiffness: 200 });
-        opacity.value = withTiming(1, { duration: 200 });
+        translateX.value = 0;
+        translateY.value = 0;
+        scale.value = 1;
+        opacity.value = 1;
       }
       zIndex.value = 0;
     });
@@ -155,12 +154,12 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
     .maxDuration(250)
     .onStart(() => {
       if (!isDragging.value) {
-        scale.value = withSpring(0.85);
+        scale.value = 0.85;
       }
     })
     .onEnd(() => {
       if (!isDragging.value) {
-        scale.value = withSpring(1);
+        scale.value = 1;
         runOnJS(onPress)();
       }
     });

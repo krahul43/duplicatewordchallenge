@@ -322,11 +322,53 @@ export default function GameScreen() {
     const columnWidth = cellWithMargin + gap;
     const rowHeight = cellWithMargin;
 
-    const col = Math.floor((relativeX - padding) / columnWidth);
-    const row = Math.floor((relativeY - padding) / rowHeight);
+    const adjustedX = relativeX - padding;
+    const adjustedY = relativeY - padding;
 
-    if (row >= 0 && row < 15 && col >= 0 && col < 15) {
-      return { row, col };
+    let closestCol = -1;
+    let closestRow = -1;
+    let minColDistance = Infinity;
+    let minRowDistance = Infinity;
+
+    for (let col = 0; col < 15; col++) {
+      const cellLeft = col * columnWidth;
+      const cellRight = cellLeft + cellWithMargin;
+      const cellCenterX = cellLeft + cellWithMargin / 2;
+
+      if (adjustedX >= cellLeft && adjustedX <= cellRight) {
+        closestCol = col;
+        minColDistance = 0;
+        break;
+      }
+
+      const distanceToCenter = Math.abs(adjustedX - cellCenterX);
+      if (distanceToCenter < minColDistance) {
+        minColDistance = distanceToCenter;
+        closestCol = col;
+      }
+    }
+
+    for (let row = 0; row < 15; row++) {
+      const cellTop = row * rowHeight;
+      const cellBottom = cellTop + cellWithMargin;
+      const cellCenterY = cellTop + cellWithMargin / 2;
+
+      if (adjustedY >= cellTop && adjustedY <= cellBottom) {
+        closestRow = row;
+        minRowDistance = 0;
+        break;
+      }
+
+      const distanceToCenter = Math.abs(adjustedY - cellCenterY);
+      if (distanceToCenter < minRowDistance) {
+        minRowDistance = distanceToCenter;
+        closestRow = row;
+      }
+    }
+
+    const threshold = cellWithMargin * 0.5;
+    if (minColDistance <= threshold && minRowDistance <= threshold && closestRow >= 0 && closestRow < 15 && closestCol >= 0 && closestCol < 15) {
+      return { row: closestRow, col: closestCol };
     }
 
     return null;
@@ -361,15 +403,28 @@ export default function GameScreen() {
     const cell = board[cellPos.row][cellPos.col];
 
     const existingTile = placedTiles.find(t => t.row === cellPos.row && t.col === cellPos.col);
-    if (!cell.locked && !existingTile) {
-      const canPlace = canPlaceTile(tile, placedTiles, board);
-
-      if (canPlace) {
-        setPlacedTiles([...placedTiles, { row: cellPos.row, col: cellPos.col, letter: tile.letter, points: tile.points }]);
-        setFocusCell({ row: cellPos.row, col: cellPos.col });
-        setTimeout(() => setFocusCell(null), 700);
-      }
+    if (existingTile) {
+      return;
     }
+
+    if (cell.locked) {
+      return;
+    }
+
+    const canPlace = canPlaceTile(tile, placedTiles, board);
+    if (!canPlace) {
+      return;
+    }
+
+    setPlacedTiles(prevTiles => {
+      const existingInPrev = prevTiles.find(t => t.row === cellPos.row && t.col === cellPos.col);
+      if (existingInPrev) {
+        return prevTiles;
+      }
+      return [...prevTiles, { row: cellPos.row, col: cellPos.col, letter: tile.letter, points: tile.points }];
+    });
+    setFocusCell({ row: cellPos.row, col: cellPos.col });
+    setTimeout(() => setFocusCell(null), 700);
   }
 
   function handleTileDragFromBoard(tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) {
@@ -402,12 +457,24 @@ export default function GameScreen() {
     const cell = board[cellPos.row][cellPos.col];
 
     const existingTile = placedTiles.find(t => t.row === cellPos.row && t.col === cellPos.col);
-    if (!cell.locked && !existingTile) {
-      const updatedTiles = placedTiles.filter(t => !(t.row === tile.row && t.col === tile.col));
-      setPlacedTiles([...updatedTiles, { row: cellPos.row, col: cellPos.col, letter: tile.letter, points: tile.points }]);
-      setFocusCell({ row: cellPos.row, col: cellPos.col });
-      setTimeout(() => setFocusCell(null), 700);
+    if (existingTile) {
+      return;
     }
+
+    if (cell.locked) {
+      return;
+    }
+
+    setPlacedTiles(prevTiles => {
+      const existingInTarget = prevTiles.find(t => t.row === cellPos.row && t.col === cellPos.col);
+      if (existingInTarget) {
+        return prevTiles;
+      }
+      const updatedTiles = prevTiles.filter(t => !(t.row === tile.row && t.col === tile.col));
+      return [...updatedTiles, { row: cellPos.row, col: cellPos.col, letter: tile.letter, points: tile.points }];
+    });
+    setFocusCell({ row: cellPos.row, col: cellPos.col });
+    setTimeout(() => setFocusCell(null), 700);
   }
 
   function handleBoardCellPress(row: number, col: number) {
