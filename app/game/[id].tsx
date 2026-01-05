@@ -296,29 +296,47 @@ export default function GameScreen() {
     setSelectedCell(null);
   }
 
-  function handleTileDrag(tile: Tile, index: number, x: number, y: number) {
-    if (!currentGame || !boardLayout || !profile?.id) return;
+  function getCellFromCoordinates(x: number, y: number): { row: number; col: number } | null {
+    if (!boardLayout) return null;
 
     const relativeX = x - boardLayout.x;
     const relativeY = y - boardLayout.y;
 
     if (relativeX < 0 || relativeY < 0 || relativeX > boardLayout.width || relativeY > boardLayout.height) {
-      setHoveredCell(null);
-      return;
+      return null;
     }
 
-    const boardSize = Math.min(boardLayout.width, boardLayout.height);
-    const CELL_SIZE = boardSize / 15;
     const padding = 4;
+    const gap = 2;
+    const cellMargin = 1;
 
-    const col = Math.floor((relativeX - padding) / CELL_SIZE);
-    const row = Math.floor((relativeY - padding) / CELL_SIZE);
+    const totalHorizontalGaps = gap * 14;
+    const totalHorizontalMargins = cellMargin * 2 * 15;
+    const totalVerticalMargins = cellMargin * 2 * 15;
+
+    const availableWidth = boardLayout.width - (padding * 2) - totalHorizontalGaps - totalHorizontalMargins;
+    const availableHeight = boardLayout.height - (padding * 2) - totalVerticalMargins;
+    const CELL_SIZE = Math.min(availableWidth / 15, availableHeight / 15);
+
+    const cellWithMargin = CELL_SIZE + (cellMargin * 2);
+    const columnWidth = cellWithMargin + gap;
+    const rowHeight = cellWithMargin;
+
+    const col = Math.floor((relativeX - padding) / columnWidth);
+    const row = Math.floor((relativeY - padding) / rowHeight);
 
     if (row >= 0 && row < 15 && col >= 0 && col < 15) {
-      setHoveredCell({ row, col });
-    } else {
-      setHoveredCell(null);
+      return { row, col };
     }
+
+    return null;
+  }
+
+  function handleTileDrag(tile: Tile, index: number, x: number, y: number) {
+    if (!currentGame || !boardLayout || !profile?.id) return;
+
+    const cell = getCellFromCoordinates(x, y);
+    setHoveredCell(cell);
   }
 
   function handleTileDragEnd(tile: Tile, index: number, x: number, y: number) {
@@ -326,38 +344,69 @@ export default function GameScreen() {
 
     if (!currentGame || !boardLayout || !profile?.id) return;
 
-    const relativeX = x - boardLayout.x;
     const relativeY = y - boardLayout.y;
-
-    if (relativeX < 0 || relativeY < 0 || relativeX > boardLayout.width || relativeY > boardLayout.height) {
+    if (relativeY > boardLayout.height + 100) {
+      const existingPlacement = placedTiles.find(t => t.letter === tile.letter && t.points === tile.points);
+      if (existingPlacement) {
+        setPlacedTiles(placedTiles.filter(t => t !== existingPlacement));
+      }
       return;
     }
 
-    const boardSize = Math.min(boardLayout.width, boardLayout.height);
-    const CELL_SIZE = boardSize / 15;
-    const padding = 4;
+    const cellPos = getCellFromCoordinates(x, y);
+    if (!cellPos) return;
 
-    const cellX = (relativeX - padding) / CELL_SIZE;
-    const cellY = (relativeY - padding) / CELL_SIZE;
+    const isPlayer1 = currentGame.player1_id === profile.id;
+    const board = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
+    const cell = board[cellPos.row][cellPos.col];
 
-    const col = Math.floor(cellX);
-    const row = Math.floor(cellY);
+    const existingTile = placedTiles.find(t => t.row === cellPos.row && t.col === cellPos.col);
+    if (!cell.locked && !existingTile) {
+      const canPlace = canPlaceTile(tile, placedTiles, board);
 
-    if (row >= 0 && row < 15 && col >= 0 && col < 15) {
-      const isPlayer1 = currentGame.player1_id === profile.id;
-      const board = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
-      const cell = board[row][col];
-
-      const existingTile = placedTiles.find(t => t.row === row && t.col === col);
-      if (!cell.locked && !existingTile) {
-        const canPlace = canPlaceTile(tile, placedTiles, board);
-
-        if (canPlace) {
-          setPlacedTiles([...placedTiles, { row, col, letter: tile.letter, points: tile.points }]);
-          setFocusCell({ row, col });
-          setTimeout(() => setFocusCell(null), 700);
-        }
+      if (canPlace) {
+        setPlacedTiles([...placedTiles, { row: cellPos.row, col: cellPos.col, letter: tile.letter, points: tile.points }]);
+        setFocusCell({ row: cellPos.row, col: cellPos.col });
+        setTimeout(() => setFocusCell(null), 700);
       }
+    }
+  }
+
+  function handleTileDragFromBoard(tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) {
+    if (!currentGame || !boardLayout || !profile?.id) return;
+
+    const cellPos = getCellFromCoordinates(x, y);
+    if (cellPos && (cellPos.row !== tile.row || cellPos.col !== tile.col)) {
+      setHoveredCell(cellPos);
+    } else {
+      setHoveredCell(null);
+    }
+  }
+
+  function handleTileDragEndFromBoard(tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) {
+    setHoveredCell(null);
+
+    if (!currentGame || !boardLayout || !profile?.id) return;
+
+    const relativeY = y - boardLayout.y;
+    if (relativeY > boardLayout.height + 100) {
+      setPlacedTiles(placedTiles.filter(t => !(t.row === tile.row && t.col === tile.col)));
+      return;
+    }
+
+    const cellPos = getCellFromCoordinates(x, y);
+    if (!cellPos || (cellPos.row === tile.row && cellPos.col === tile.col)) return;
+
+    const isPlayer1 = currentGame.player1_id === profile.id;
+    const board = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
+    const cell = board[cellPos.row][cellPos.col];
+
+    const existingTile = placedTiles.find(t => t.row === cellPos.row && t.col === cellPos.col);
+    if (!cell.locked && !existingTile) {
+      const updatedTiles = placedTiles.filter(t => !(t.row === tile.row && t.col === tile.col));
+      setPlacedTiles([...updatedTiles, { row: cellPos.row, col: cellPos.col, letter: tile.letter, points: tile.points }]);
+      setFocusCell({ row: cellPos.row, col: cellPos.col });
+      setTimeout(() => setFocusCell(null), 700);
     }
   }
 
@@ -809,6 +858,8 @@ export default function GameScreen() {
           hoveredCell={hoveredCell}
           formedWords={formedWords}
           focusCell={focusCell}
+          onTileDragFromBoard={handleTileDragFromBoard}
+          onTileDragEndFromBoard={handleTileDragEndFromBoard}
         />
       </View>
 

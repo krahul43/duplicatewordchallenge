@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { BoardCell as BoardCellType } from '../types/game';
 import { FormedWord } from '../utils/gameLogic';
 
@@ -15,6 +15,8 @@ interface Props {
   hoveredCell?: { row: number; col: number } | null;
   formedWords?: FormedWord[];
   focusCell?: { row: number; col: number } | null;
+  onTileDragFromBoard?: (tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) => void;
+  onTileDragEndFromBoard?: (tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) => void;
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -24,7 +26,7 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
 const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
 const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard, hoveredCell = null, formedWords = [], focusCell = null }: Props) {
+export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard, hoveredCell = null, formedWords = [], focusCell = null, onTileDragFromBoard, onTileDragEndFromBoard }: Props) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -34,14 +36,26 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
     if (focusCell) {
       const cellCenterX = (focusCell.col - 7.5) * CELL_SIZE;
 
-      const targetScale = 1.3;
+      const targetScale = 1.15;
       scale.value = withSpring(targetScale, { damping: 18, stiffness: 100 });
       savedScale.value = targetScale;
 
-      translateX.value = withSpring(-cellCenterX * 0.3, { damping: 18, stiffness: 100 });
-      savedTranslateX.value = -cellCenterX * 0.3;
+      translateX.value = withSpring(-cellCenterX * 0.15, { damping: 18, stiffness: 100 });
+      savedTranslateX.value = -cellCenterX * 0.15;
     }
   }, [focusCell]);
+
+  React.useEffect(() => {
+    if (hoveredCell) {
+      if (scale.value !== 1 || translateX.value !== 0) {
+        scale.value = withTiming(1, { duration: 150 });
+        translateX.value = withTiming(0, { duration: 150 });
+        savedScale.value = 1;
+        savedTranslateX.value = 0;
+      }
+      setTimeout(() => handleLayout(), 200);
+    }
+  }, [hoveredCell, handleLayout]);
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((event) => {
@@ -73,12 +87,15 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
   }));
 
   const boardRef = React.useRef<any>(null);
+  const containerRef = React.useRef<any>(null);
 
   const handleLayout = useCallback(() => {
-    if (onMeasureBoard && boardRef.current) {
-      boardRef.current.measureInWindow((x: number, y: number, width: number, height: number) => {
-        onMeasureBoard({ x, y, width, height });
-      });
+    if (onMeasureBoard && containerRef.current) {
+      setTimeout(() => {
+        containerRef.current?.measureInWindow((x: number, y: number, width: number, height: number) => {
+          onMeasureBoard({ x, y, width, height });
+        });
+      }, 100);
     }
   }, [onMeasureBoard]);
 
@@ -93,7 +110,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
         style={[styles.boardWrapper, animatedStyle]}
         onLayout={handleLayout}
       >
-        <View style={styles.container}>
+        <View ref={containerRef} style={styles.container}>
           {board.map((row, rowIndex) => (
             <View key={rowIndex} style={styles.row}>
               {row.map((cell, colIndex) => {
@@ -119,6 +136,8 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
                     isHovered={isHovered}
                     canPlace={canPlace}
                     wordColor={wordColor}
+                    onTileDragFromBoard={onTileDragFromBoard}
+                    onTileDragEndFromBoard={onTileDragEndFromBoard}
                   />
                 );
               })}
@@ -140,37 +159,25 @@ interface BoardCellProps {
   isHovered?: boolean;
   canPlace?: boolean;
   wordColor?: string;
+  onTileDragFromBoard?: (tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) => void;
+  onTileDragEndFromBoard?: (tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) => void;
 }
 
-function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, isHovered, canPlace, wordColor }: BoardCellProps) {
+function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, isHovered, canPlace, wordColor, onTileDragFromBoard, onTileDragEndFromBoard }: BoardCellProps) {
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
+  const tileTranslateX = useSharedValue(0);
   const tileTranslateY = useSharedValue(0);
   const tileScale = useSharedValue(1);
   const tileOpacity = useSharedValue(1);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
+  const isDragging = useSharedValue(false);
   const [prevPlacedTile, setPrevPlacedTile] = React.useState(placedTile);
 
   React.useEffect(() => {
-    if (placedTile && !prevPlacedTile) {
-      tileTranslateY.value = -8;
-      tileScale.value = 0.95;
-      tileOpacity.value = 0;
-
-      tileTranslateY.value = withSpring(0, {
-        damping: 15,
-        stiffness: 180,
-        mass: 0.5,
-      });
-      tileScale.value = withSpring(1, {
-        damping: 12,
-        stiffness: 150,
-        mass: 0.6,
-      });
-      tileOpacity.value = withTiming(1, {
-        duration: 150,
-        easing: Easing.out(Easing.quad),
-      });
-    } else if (placedTile) {
+    if (!isDragging.value) {
+      tileTranslateX.value = 0;
       tileTranslateY.value = 0;
       tileScale.value = 1;
       tileOpacity.value = 1;
@@ -195,10 +202,44 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
   ];
 
   const handlePress = () => {
-    if (onPress && !cell.locked) {
+    if (onPress && !cell.locked && !placedTile) {
       onPress(rowIndex, colIndex);
     }
   };
+
+  const tilePanGesture = Gesture.Pan()
+    .enabled(!!placedTile && !!onTileDragFromBoard && !!onTileDragEndFromBoard)
+    .onStart((event) => {
+      isDragging.value = true;
+      startX.value = event.absoluteX;
+      startY.value = event.absoluteY;
+      tileScale.value = withSpring(1.2, { damping: 15, stiffness: 250 });
+    })
+    .onUpdate((event) => {
+      tileTranslateX.value = event.translationX;
+      tileTranslateY.value = event.translationY;
+
+      if (placedTile && onTileDragFromBoard) {
+        const currentX = startX.value + event.translationX;
+        const currentY = startY.value + event.translationY;
+        const tileData = { row: rowIndex, col: colIndex, letter: placedTile.letter, points: placedTile.points };
+        runOnJS(onTileDragFromBoard)(tileData, currentX, currentY);
+      }
+    })
+    .onEnd((event) => {
+      isDragging.value = false;
+
+      if (placedTile && onTileDragEndFromBoard) {
+        const finalX = startX.value + event.translationX;
+        const finalY = startY.value + event.translationY;
+        const tileData = { row: rowIndex, col: colIndex, letter: placedTile.letter, points: placedTile.points };
+        runOnJS(onTileDragEndFromBoard)(tileData, finalX, finalY);
+      }
+
+      tileTranslateX.value = withSpring(0, { damping: 18, stiffness: 160 });
+      tileTranslateY.value = withSpring(0, { damping: 18, stiffness: 160 });
+      tileScale.value = withSpring(1, { damping: 14, stiffness: 200 });
+    });
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -210,6 +251,7 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
 
   const tileAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
+      { translateX: tileTranslateX.value },
       { translateY: tileTranslateY.value },
       { scale: tileScale.value }
     ],
@@ -227,13 +269,15 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
           <Animated.View style={[styles.dropGlow, glowStyle]} />
         )}
         {placedTile ? (
-          <Animated.View style={[styles.tileContainer, tileAnimatedStyle]}>
-            <Text style={styles.letter}>{placedTile.letter}</Text>
-            <Text style={styles.points}>{placedTile.points}</Text>
-          </Animated.View>
+          <GestureDetector gesture={tilePanGesture}>
+            <Animated.View style={[styles.tileContainer, tileAnimatedStyle]}>
+              <Text style={styles.letter}>{placedTile.letter === '' ? '★' : placedTile.letter}</Text>
+              <Text style={styles.points}>{placedTile.points}</Text>
+            </Animated.View>
+          </GestureDetector>
         ) : cell.letter ? (
           <View style={styles.tileContainer}>
-            <Text style={styles.letter}>{cell.letter}</Text>
+            <Text style={styles.letter}>{cell.letter === '' ? '★' : cell.letter}</Text>
           </View>
         ) : (
           <Text style={styles.label}>{getCellLabel(cell.type)}</Text>
@@ -350,6 +394,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
+    zIndex: 10,
+    backgroundColor: '#FAE5C8',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E8D4B0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   letter: {
     fontSize: Math.max(14, CELL_SIZE * 0.55),
@@ -374,5 +428,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+    zIndex: 1,
   },
 });

@@ -181,7 +181,9 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
     <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.tile, isUsed && styles.tileUsed, isDisabled && styles.tileDisabled, animatedStyle]}>
         {isDisabled && <View style={styles.disabledOverlay} />}
-        <Text style={[styles.letter, isUsed && styles.letterUsed, isDisabled && styles.letterDisabled]}>{tile.letter}</Text>
+        <Text style={[styles.letter, isUsed && styles.letterUsed, isDisabled && styles.letterDisabled]}>
+          {tile.letter === '' ? '★' : tile.letter}
+        </Text>
         <Text style={[styles.points, isUsed && styles.pointsUsed, isDisabled && styles.pointsDisabled]}>{tile.points}</Text>
       </Animated.View>
     </GestureDetector>

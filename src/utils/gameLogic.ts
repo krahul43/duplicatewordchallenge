@@ -140,7 +140,7 @@ export function generateTileBag(): Tile[] {
   for (const [letter, count] of Object.entries(LETTER_DISTRIBUTION)) {
     for (let i = 0; i < count; i++) {
       bag.push({
-        letter,
+        letter: letter === 'BLANK' ? '' : letter,
         points: letter === 'BLANK' ? 0 : LETTER_SCORES[letter],
       });
     }
