@@ -36,17 +36,34 @@ export function TileRack({ tiles, onTilePress, onTileDrag, onTileDragEnd, select
   console.log('TileRack received tiles:', tiles);
   const tilesToShow = tiles.length > 0 ? tiles : testTiles;
 
+  const availableTiles: Tile[] = [];
+  const usedCount: { [key: string]: number } = {};
+
+  placedTiles.forEach(pt => {
+    usedCount[pt.letter] = (usedCount[pt.letter] || 0) + 1;
+  });
+
+  tilesToShow.forEach(tile => {
+    const timesUsed = usedCount[tile.letter] || 0;
+    const timesAlreadyAdded = availableTiles.filter(t => t.letter === tile.letter).length;
+    const totalAvailable = tilesToShow.filter(t => t.letter === tile.letter).length;
+
+    if (timesAlreadyAdded < (totalAvailable - timesUsed)) {
+      availableTiles.push(tile);
+    }
+  });
+
   return (
     <View style={styles.container}>
-      {tilesToShow.length === 0 ? (
+      {availableTiles.length === 0 ? (
         <Text style={styles.emptyMessage}>Loading tiles...</Text>
       ) : (
-        tilesToShow.map((tile, index) => {
+        availableTiles.map((tile, index) => {
           const isUsed = selectedTiles.some((st) => st === tile);
           const isDisabled = board ? !canPlaceTile(tile, placedTiles, board) : false;
           return (
             <DraggableTile
-              key={index}
+              key={`${tile.letter}-${index}`}
               tile={tile}
               index={index}
               onPress={() => onTilePress(tile, index)}
@@ -88,9 +105,9 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
       isDragging.value = true;
       startX.value = event.absoluteX;
       startY.value = event.absoluteY;
-      scale.value = withSpring(1.3);
+      scale.value = withSpring(1.3, { damping: 12, stiffness: 200 });
       zIndex.value = 1000;
-      opacity.value = withTiming(0.85);
+      opacity.value = withTiming(0.9, { duration: 150 });
     })
     .onUpdate((event) => {
       translateX.value = event.translationX;
@@ -112,11 +129,11 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
         runOnJS(onDragEnd)(tile, index, finalX, finalY);
       }
 
-      translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
-      translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
-      scale.value = withSpring(1);
+      translateX.value = withSpring(0, { damping: 20, stiffness: 140 });
+      translateY.value = withSpring(0, { damping: 20, stiffness: 140 });
+      scale.value = withSpring(1, { damping: 12, stiffness: 180 });
+      opacity.value = withTiming(1, { duration: 150 });
       zIndex.value = 0;
-      opacity.value = withTiming(1);
     });
 
   const tap = Gesture.Tap()

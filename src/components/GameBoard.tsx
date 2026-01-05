@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { BoardCell as BoardCellType } from '../types/game';
 import { FormedWord } from '../utils/gameLogic';
 
@@ -14,6 +14,7 @@ interface Props {
   onMeasureBoard?: (layout: { x: number; y: number; width: number; height: number }) => void;
   hoveredCell?: { row: number; col: number } | null;
   formedWords?: FormedWord[];
+  focusCell?: { row: number; col: number } | null;
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -23,13 +24,26 @@ const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
 const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
 const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard, hoveredCell = null, formedWords = [] }: Props) {
+export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, hasSelectedTiles = false, onMeasureBoard, hoveredCell = null, formedWords = [], focusCell = null }: Props) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
+
+  React.useEffect(() => {
+    if (focusCell) {
+      const cellCenterX = (focusCell.col - 7.5) * CELL_SIZE;
+
+      const targetScale = 1.3;
+      scale.value = withSpring(targetScale, { damping: 18, stiffness: 100 });
+      savedScale.value = targetScale;
+
+      translateX.value = withSpring(-cellCenterX * 0.3, { damping: 18, stiffness: 100 });
+      savedTranslateX.value = -cellCenterX * 0.3;
+    }
+  }, [focusCell]);
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((event) => {
@@ -45,12 +59,10 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
       if (scale.value > 1) {
         const maxTranslate = ((scale.value - 1) * MAX_SIZE) / 2;
         translateX.value = Math.max(-maxTranslate, Math.min(maxTranslate, savedTranslateX.value + event.translationX));
-        translateY.value = Math.max(-maxTranslate, Math.min(maxTranslate, savedTranslateY.value + event.translationY));
       }
     })
     .onEnd(() => {
       savedTranslateX.value = translateX.value;
-      savedTranslateY.value = translateY.value;
     });
 
   const composedGesture = Gesture.Race(pinchGesture, panGesture);
@@ -58,7 +70,6 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
-      { translateY: translateY.value },
       { scale: scale.value },
     ],
   }));
@@ -136,6 +147,38 @@ interface BoardCellProps {
 function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, isHovered, canPlace, wordColor }: BoardCellProps) {
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
+  const tileTranslateY = useSharedValue(0);
+  const tileScale = useSharedValue(1);
+  const tileOpacity = useSharedValue(1);
+  const [prevPlacedTile, setPrevPlacedTile] = React.useState(placedTile);
+
+  React.useEffect(() => {
+    if (placedTile && !prevPlacedTile) {
+      tileTranslateY.value = -8;
+      tileScale.value = 0.95;
+      tileOpacity.value = 0;
+
+      tileTranslateY.value = withSpring(0, {
+        damping: 15,
+        stiffness: 180,
+        mass: 0.5,
+      });
+      tileScale.value = withSpring(1, {
+        damping: 12,
+        stiffness: 150,
+        mass: 0.6,
+      });
+      tileOpacity.value = withTiming(1, {
+        duration: 150,
+        easing: Easing.out(Easing.quad),
+      });
+    } else if (placedTile) {
+      tileTranslateY.value = 0;
+      tileScale.value = 1;
+      tileOpacity.value = 1;
+    }
+    setPrevPlacedTile(placedTile);
+  }, [placedTile]);
 
   React.useEffect(() => {
     if (isHovered && canPlace) {
@@ -155,9 +198,6 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
 
   const handlePress = () => {
     if (onPress && !cell.locked) {
-      scale.value = withSpring(0.9, {}, () => {
-        scale.value = withSpring(1);
-      });
       onPress(rowIndex, colIndex);
     }
   };
@@ -168,6 +208,14 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
 
   const glowStyle = useAnimatedStyle(() => ({
     opacity: glowOpacity.value,
+  }));
+
+  const tileAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: tileTranslateY.value },
+      { scale: tileScale.value }
+    ],
+    opacity: tileOpacity.value,
   }));
 
   return (
@@ -181,10 +229,10 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
           <Animated.View style={[styles.dropGlow, glowStyle]} />
         )}
         {placedTile ? (
-          <View style={styles.tileContainer}>
+          <Animated.View style={[styles.tileContainer, tileAnimatedStyle]}>
             <Text style={styles.letter}>{placedTile.letter}</Text>
             <Text style={styles.points}>{placedTile.points}</Text>
-          </View>
+          </Animated.View>
         ) : cell.letter ? (
           <View style={styles.tileContainer}>
             <Text style={styles.letter}>{cell.letter}</Text>
@@ -301,7 +349,9 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   letter: {
     fontSize: Math.max(14, CELL_SIZE * 0.55),

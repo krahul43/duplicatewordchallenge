@@ -37,6 +37,7 @@ export default function GameScreen() {
   const [showTileBag, setShowTileBag] = useState(false);
   const [boardLayout, setBoardLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+  const [focusCell, setFocusCell] = useState<{ row: number; col: number } | null>(null);
 
   const isPlayer1 = currentGame?.player1_id === profile?.id;
   const currentBoard = currentGame ? ((isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board) : [];
@@ -353,7 +354,8 @@ export default function GameScreen() {
         }
 
         setPlacedTiles([...placedTiles, { row, col, letter: tile.letter, points: tile.points }]);
-        dispatch(addSelectedTile(tile));
+        setFocusCell({ row, col });
+        setTimeout(() => setFocusCell(null), 700);
       }
     }
   }
@@ -364,7 +366,6 @@ export default function GameScreen() {
       const existingTile = placedTiles.find(t => t.row === row && t.col === col);
       if (existingTile) {
         setPlacedTiles(placedTiles.filter(t => t.row !== row || t.col !== col));
-        dispatch(addSelectedTile({ letter: existingTile.letter, points: existingTile.points }));
       }
       return;
     }
@@ -377,6 +378,8 @@ export default function GameScreen() {
 
     const nextTile = selectedTiles[0];
     setPlacedTiles([...placedTiles, { row, col, letter: nextTile.letter, points: nextTile.points }]);
+    setFocusCell({ row, col });
+    setTimeout(() => setFocusCell(null), 700);
 
     const newSelected = selectedTiles.slice(1);
     dispatch(setSelectedTiles(newSelected));
@@ -803,6 +806,7 @@ export default function GameScreen() {
           onMeasureBoard={setBoardLayout}
           hoveredCell={hoveredCell}
           formedWords={formedWords}
+          focusCell={focusCell}
         />
       </View>
 
