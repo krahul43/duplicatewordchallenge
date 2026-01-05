@@ -95,7 +95,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
         containerRef.current?.measureInWindow((x: number, y: number, width: number, height: number) => {
           onMeasureBoard({ x, y, width, height });
         });
-      }, 100);
+      }, 150);
     }
   }, [onMeasureBoard]);
 
@@ -373,8 +373,7 @@ const styles = StyleSheet.create({
   cellCanPlace: {
     borderWidth: 2,
     borderColor: '#10B981',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    opacity: 0.8,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
   dropGlow: {
     position: 'absolute',
@@ -384,7 +383,7 @@ const styles = StyleSheet.create({
     bottom: -4,
     backgroundColor: '#10B981',
     borderRadius: 8,
-    opacity: 0.3,
+    opacity: 0.5,
   },
   tileContainer: {
     width: '100%',

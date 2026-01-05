@@ -318,57 +318,29 @@ export default function GameScreen() {
     const availableHeight = boardLayout.height - (padding * 2) - totalVerticalMargins;
     const CELL_SIZE = Math.min(availableWidth / 15, availableHeight / 15);
 
-    const cellWithMargin = CELL_SIZE + (cellMargin * 2);
-    const columnWidth = cellWithMargin + gap;
-    const rowHeight = cellWithMargin;
-
-    const adjustedX = relativeX - padding;
-    const adjustedY = relativeY - padding;
-
-    let closestCol = -1;
-    let closestRow = -1;
-    let minColDistance = Infinity;
-    let minRowDistance = Infinity;
-
-    for (let col = 0; col < 15; col++) {
-      const cellLeft = col * columnWidth;
-      const cellRight = cellLeft + cellWithMargin;
-      const cellCenterX = cellLeft + cellWithMargin / 2;
-
-      if (adjustedX >= cellLeft && adjustedX <= cellRight) {
-        closestCol = col;
-        minColDistance = 0;
-        break;
-      }
-
-      const distanceToCenter = Math.abs(adjustedX - cellCenterX);
-      if (distanceToCenter < minColDistance) {
-        minColDistance = distanceToCenter;
-        closestCol = col;
-      }
-    }
+    let bestRow = -1;
+    let bestCol = -1;
+    let bestDistance = Infinity;
 
     for (let row = 0; row < 15; row++) {
-      const cellTop = row * rowHeight;
-      const cellBottom = cellTop + cellWithMargin;
-      const cellCenterY = cellTop + cellWithMargin / 2;
+      for (let col = 0; col < 15; col++) {
+        const cellCenterX = padding + cellMargin + (col * (CELL_SIZE + 2 * cellMargin + gap)) + (CELL_SIZE / 2);
+        const cellCenterY = padding + cellMargin + (row * (CELL_SIZE + 2 * cellMargin)) + (CELL_SIZE / 2);
 
-      if (adjustedY >= cellTop && adjustedY <= cellBottom) {
-        closestRow = row;
-        minRowDistance = 0;
-        break;
-      }
+        const distanceX = relativeX - cellCenterX;
+        const distanceY = relativeY - cellCenterY;
+        const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
 
-      const distanceToCenter = Math.abs(adjustedY - cellCenterY);
-      if (distanceToCenter < minRowDistance) {
-        minRowDistance = distanceToCenter;
-        closestRow = row;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestRow = row;
+          bestCol = col;
+        }
       }
     }
 
-    const threshold = cellWithMargin * 0.5;
-    if (minColDistance <= threshold && minRowDistance <= threshold && closestRow >= 0 && closestRow < 15 && closestCol >= 0 && closestCol < 15) {
-      return { row: closestRow, col: closestCol };
+    if (bestRow >= 0 && bestRow < 15 && bestCol >= 0 && bestCol < 15) {
+      return { row: bestRow, col: bestCol };
     }
 
     return null;

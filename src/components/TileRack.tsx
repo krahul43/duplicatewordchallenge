@@ -106,7 +106,7 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
       shouldHide.value = false;
       startX.value = event.absoluteX;
       startY.value = event.absoluteY;
-      scale.value = 1.1;
+      scale.value = withTiming(1.6, { duration: 100 });
       zIndex.value = 1000;
       opacity.value = 0.95;
     })
@@ -139,12 +139,12 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
 
       if (placedSuccessfully) {
         opacity.value = withTiming(0, { duration: 200 });
-        scale.value = 0.8;
+        scale.value = withTiming(0.6, { duration: 200 });
       } else {
-        translateX.value = 0;
-        translateY.value = 0;
-        scale.value = 1;
-        opacity.value = 1;
+        translateX.value = withTiming(0, { duration: 200 });
+        translateY.value = withTiming(0, { duration: 200 });
+        scale.value = withTiming(1, { duration: 200 });
+        opacity.value = withTiming(1, { duration: 200 });
       }
       zIndex.value = 0;
     });
