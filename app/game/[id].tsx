@@ -337,8 +337,14 @@ export default function GameScreen() {
     const CELL_SIZE = boardSize / 15;
     const padding = 4;
 
-    const col = Math.floor((relativeX - padding) / CELL_SIZE);
-    const row = Math.floor((relativeY - padding) / CELL_SIZE);
+    const cellX = (relativeX - padding) / CELL_SIZE;
+    const cellY = (relativeY - padding) / CELL_SIZE;
+
+    const col = Math.floor(cellX);
+    const row = Math.floor(cellY);
+
+    const cellCenterOffsetX = Math.abs(cellX - col - 0.5);
+    const cellCenterOffsetY = Math.abs(cellY - row - 0.5);
 
     if (row >= 0 && row < 15 && col >= 0 && col < 15) {
       const isPlayer1 = currentGame.player1_id === profile.id;
@@ -353,9 +359,11 @@ export default function GameScreen() {
           return;
         }
 
-        setPlacedTiles([...placedTiles, { row, col, letter: tile.letter, points: tile.points }]);
-        setFocusCell({ row, col });
-        setTimeout(() => setFocusCell(null), 700);
+        if (cellCenterOffsetX < 0.45 && cellCenterOffsetY < 0.45) {
+          setPlacedTiles([...placedTiles, { row, col, letter: tile.letter, points: tile.points }]);
+          setFocusCell({ row, col });
+          setTimeout(() => setFocusCell(null), 700);
+        }
       }
     }
   }

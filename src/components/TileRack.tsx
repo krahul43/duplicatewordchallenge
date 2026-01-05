@@ -98,16 +98,18 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
   const isDragging = useSharedValue(false);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
+  const shouldHide = useSharedValue(false);
 
   const pan = Gesture.Pan()
     .enabled(!isDisabled)
     .onStart((event) => {
       isDragging.value = true;
+      shouldHide.value = false;
       startX.value = event.absoluteX;
       startY.value = event.absoluteY;
-      scale.value = withSpring(1.3, { damping: 12, stiffness: 200 });
+      scale.value = withSpring(1.3, { damping: 15, stiffness: 250 });
       zIndex.value = 1000;
-      opacity.value = withTiming(0.9, { duration: 150 });
+      opacity.value = withTiming(0.95, { duration: 100 });
     })
     .onUpdate((event) => {
       translateX.value = event.translationX;
@@ -123,16 +125,28 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
       isDragging.value = false;
       const wasDragged = Math.abs(event.translationX) > 30 || Math.abs(event.translationY) > 30;
 
+      let placedSuccessfully = false;
+
       if (onDragEnd && wasDragged) {
         const finalX = startX.value + event.translationX;
         const finalY = startY.value + event.translationY;
         runOnJS(onDragEnd)(tile, index, finalX, finalY);
+
+        if (Math.abs(event.translationY) > 80) {
+          shouldHide.value = true;
+          placedSuccessfully = true;
+        }
       }
 
-      translateX.value = withSpring(0, { damping: 20, stiffness: 140 });
-      translateY.value = withSpring(0, { damping: 20, stiffness: 140 });
-      scale.value = withSpring(1, { damping: 12, stiffness: 180 });
-      opacity.value = withTiming(1, { duration: 150 });
+      if (placedSuccessfully) {
+        opacity.value = withTiming(0, { duration: 200 });
+        scale.value = withSpring(0.8, { damping: 15, stiffness: 200 });
+      } else {
+        translateX.value = withSpring(0, { damping: 18, stiffness: 160 });
+        translateY.value = withSpring(0, { damping: 18, stiffness: 160 });
+        scale.value = withSpring(1, { damping: 14, stiffness: 200 });
+        opacity.value = withTiming(1, { duration: 200 });
+      }
       zIndex.value = 0;
     });
 
