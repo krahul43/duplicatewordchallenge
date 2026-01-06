@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { ChevronLeft, Flag, Package, Pause, Play, Shuffle, X } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameEndModal } from '../../src/components/GameEndModal';
@@ -307,40 +307,52 @@ export default function GameScreen() {
     }
 
     const padding = 4;
-    const gap = 2;
+    const horizontalGap = 2;
     const cellMargin = 1;
+    const SCREEN_WIDTH = Dimensions.get('window').width;
+    const SCREEN_HEIGHT = Dimensions.get('window').height;
+    const AVAILABLE_HEIGHT = Platform.OS === 'web' ? SCREEN_HEIGHT - 450 : SCREEN_HEIGHT - 500;
+    const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
+    const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
+    const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-    const totalHorizontalGaps = gap * 14;
-    const totalHorizontalMargins = cellMargin * 2 * 15;
-    const totalVerticalMargins = cellMargin * 2 * 15;
+    const adjustedX = relativeX - padding;
+    const adjustedY = relativeY - padding;
 
-    const availableWidth = boardLayout.width - (padding * 2) - totalHorizontalGaps - totalHorizontalMargins;
-    const availableHeight = boardLayout.height - (padding * 2) - totalVerticalMargins;
-    const CELL_SIZE = Math.min(availableWidth / 15, availableHeight / 15);
+    const cellWithMarginWidth = CELL_SIZE + (2 * cellMargin);
+    const cellWithMarginHeight = CELL_SIZE + (2 * cellMargin);
+    const columnWidth = cellWithMarginWidth + horizontalGap;
 
-    let bestRow = -1;
-    let bestCol = -1;
-    let bestDistance = Infinity;
+    let col = -1;
+    let row = -1;
 
-    for (let row = 0; row < 15; row++) {
-      for (let col = 0; col < 15; col++) {
-        const cellCenterX = padding + cellMargin + (col * (CELL_SIZE + 2 * cellMargin + gap)) + (CELL_SIZE / 2);
-        const cellCenterY = padding + cellMargin + (row * (CELL_SIZE + 2 * cellMargin)) + (CELL_SIZE / 2);
+    let bestColDistance = Infinity;
+    let bestRowDistance = Infinity;
 
-        const distanceX = relativeX - cellCenterX;
-        const distanceY = relativeY - cellCenterY;
-        const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+    for (let c = 0; c < 15; c++) {
+      const cellX = c * columnWidth + cellMargin;
+      const cellCenterX = cellX + CELL_SIZE / 2;
+      const distance = Math.abs(adjustedX - cellCenterX);
 
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestRow = row;
-          bestCol = col;
-        }
+      if (distance < bestColDistance) {
+        bestColDistance = distance;
+        col = c;
       }
     }
 
-    if (bestRow >= 0 && bestRow < 15 && bestCol >= 0 && bestCol < 15) {
-      return { row: bestRow, col: bestCol };
+    for (let r = 0; r < 15; r++) {
+      const cellY = r * cellWithMarginHeight + cellMargin;
+      const cellCenterY = cellY + CELL_SIZE / 2;
+      const distance = Math.abs(adjustedY - cellCenterY);
+
+      if (distance < bestRowDistance) {
+        bestRowDistance = distance;
+        row = r;
+      }
+    }
+
+    if (row >= 0 && row < 15 && col >= 0 && col < 15) {
+      return { row, col };
     }
 
     return null;

@@ -199,6 +199,7 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
     isSelected && styles.selectedCell,
     placedTile && styles.cellWithNewTile,
     canPlace && styles.cellCanPlace,
+    canPlace && isHovered && styles.cellHovered,
   ];
 
   const handlePress = () => {
@@ -374,6 +375,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#10B981',
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  cellHovered: {
+    borderWidth: 3,
+    borderColor: '#059669',
+    backgroundColor: 'rgba(16, 185, 129, 0.35)',
+    transform: [{ scale: 1.05 }],
   },
   dropGlow: {
     position: 'absolute',
