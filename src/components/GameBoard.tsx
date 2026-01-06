@@ -12,7 +12,7 @@ interface Props {
   selectedCell?: { row: number; col: number } | null;
   hasSelectedTiles?: boolean;
   onMeasureBoard?: (layout: { x: number; y: number; width: number; height: number }) => void;
-  hoveredCell?: { row: number; col: number } | null;
+  hoveredCell?: { row: number; col: number; valid: boolean } | null;
   formedWords?: FormedWord[];
   focusCell?: { row: number; col: number } | null;
   onTileDragFromBoard?: (tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) => void;
@@ -117,6 +117,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
                 const placedTile = placedTiles.find(t => t.row === rowIndex && t.col === colIndex);
                 const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
                 const isHovered = hoveredCell?.row === rowIndex && hoveredCell?.col === colIndex;
+                const isValidHover = isHovered && hoveredCell ? hoveredCell.valid : false;
                 const canPlace = hasSelectedTiles && !cell.locked && !placedTile;
 
                 const wordsAtCell = formedWords.filter(word =>
@@ -134,6 +135,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
                     placedTile={placedTile}
                     isSelected={isSelected}
                     isHovered={isHovered}
+                    isValidHover={isValidHover}
                     canPlace={canPlace}
                     wordColor={wordColor}
                     onTileDragFromBoard={onTileDragFromBoard}
@@ -157,13 +159,14 @@ interface BoardCellProps {
   placedTile?: { letter: string; points: number };
   isSelected?: boolean;
   isHovered?: boolean;
+  isValidHover?: boolean;
   canPlace?: boolean;
   wordColor?: string;
   onTileDragFromBoard?: (tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) => void;
   onTileDragEndFromBoard?: (tile: { row: number; col: number; letter: string; points: number }, x: number, y: number) => void;
 }
 
-function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, isHovered, canPlace, wordColor, onTileDragFromBoard, onTileDragEndFromBoard }: BoardCellProps) {
+function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, isHovered, isValidHover, canPlace, wordColor, onTileDragFromBoard, onTileDragEndFromBoard }: BoardCellProps) {
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
   const tileTranslateX = useSharedValue(0);
@@ -186,12 +189,14 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
   }, [placedTile]);
 
   React.useEffect(() => {
-    if (isHovered && canPlace) {
-      glowOpacity.value = withTiming(1, { duration: 150 });
+    if (isHovered) {
+      glowOpacity.value = withTiming(1, { duration: 50 });
+      scale.value = withTiming(1.25, { duration: 50 });
     } else {
-      glowOpacity.value = withTiming(0, { duration: 150 });
+      glowOpacity.value = withTiming(0, { duration: 50 });
+      scale.value = withTiming(1, { duration: 50 });
     }
-  }, [isHovered, canPlace]);
+  }, [isHovered]);
 
   const cellStyle = [
     styles.cell,
@@ -199,7 +204,8 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
     isSelected && styles.selectedCell,
     placedTile && styles.cellWithNewTile,
     canPlace && styles.cellCanPlace,
-    canPlace && isHovered && styles.cellHovered,
+    isHovered && isValidHover && styles.cellHoveredValid,
+    isHovered && !isValidHover && styles.cellHoveredInvalid,
   ];
 
   const handlePress = () => {
@@ -266,8 +272,21 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
       activeOpacity={0.7}
     >
       <Animated.View style={[cellStyle, animatedStyle]}>
-        {canPlace && isHovered && (
-          <Animated.View style={[styles.dropGlow, glowStyle]} />
+        {isHovered && (
+          <>
+            <Animated.View style={[
+              isValidHover ? styles.dropGlowValid : styles.dropGlowInvalid,
+              glowStyle
+            ]} />
+            <View style={styles.dropIndicator}>
+              <Text style={[
+                styles.dropText,
+                isValidHover ? styles.dropTextValid : styles.dropTextInvalid
+              ]}>
+                {isValidHover ? '✓' : '✗'}
+              </Text>
+            </View>
+          </>
         )}
         {placedTile ? (
           <GestureDetector gesture={tilePanGesture}>
@@ -376,21 +395,58 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
-  cellHovered: {
-    borderWidth: 3,
-    borderColor: '#059669',
-    backgroundColor: 'rgba(16, 185, 129, 0.35)',
-    transform: [{ scale: 1.05 }],
+  cellHoveredValid: {
+    borderWidth: 5,
+    borderColor: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.65)',
   },
-  dropGlow: {
+  cellHoveredInvalid: {
+    borderWidth: 5,
+    borderColor: '#EF4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  dropGlowValid: {
     position: 'absolute',
-    top: -4,
-    left: -4,
-    right: -4,
-    bottom: -4,
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
     backgroundColor: '#10B981',
-    borderRadius: 8,
-    opacity: 0.5,
+    borderRadius: 12,
+    opacity: 0.7,
+  },
+  dropGlowInvalid: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    opacity: 0.7,
+  },
+  dropIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  dropText: {
+    fontSize: Math.max(20, CELL_SIZE * 0.7),
+    fontWeight: '900',
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+  },
+  dropTextValid: {
+    color: '#059669',
+  },
+  dropTextInvalid: {
+    color: '#DC2626',
   },
   tileContainer: {
     width: '100%',

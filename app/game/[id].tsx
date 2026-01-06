@@ -36,8 +36,9 @@ export default function GameScreen() {
   const [pauseRequestShown, setPauseRequestShown] = useState(false);
   const [showTileBag, setShowTileBag] = useState(false);
   const [boardLayout, setBoardLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number; valid: boolean } | null>(null);
   const [focusCell, setFocusCell] = useState<{ row: number; col: number } | null>(null);
+  const boardRef = React.useRef<View>(null);
 
   const isPlayer1 = currentGame?.player1_id === profile?.id;
   const currentBoard = currentGame ? ((isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board) : [];
@@ -297,18 +298,37 @@ export default function GameScreen() {
   }
 
   function getCellFromCoordinates(x: number, y: number): { row: number; col: number } | null {
-    if (!boardLayout) return null;
+    if (!boardLayout) {
+      console.log('❌ No boardLayout available');
+      return null;
+    }
 
     const relativeX = x - boardLayout.x;
     const relativeY = y - boardLayout.y;
 
+    console.log('🎯 Drop Debug:', {
+      finalX: x.toFixed(2),
+      finalY: y.toFixed(2),
+      boardX: boardLayout.x.toFixed(2),
+      boardY: boardLayout.y.toFixed(2),
+      relativeX: relativeX.toFixed(2),
+      relativeY: relativeY.toFixed(2),
+      boardWidth: boardLayout.width.toFixed(2),
+      boardHeight: boardLayout.height.toFixed(2),
+    });
+
     if (relativeX < 0 || relativeY < 0 || relativeX > boardLayout.width || relativeY > boardLayout.height) {
+      console.log('❌ Outside board bounds');
       return null;
     }
 
-    const padding = 4;
-    const horizontalGap = 2;
-    const cellMargin = 1;
+    const PADDING = 4;
+    const CELL_MARGIN = 1;
+    const HORIZONTAL_GAP = 2;
+
+    const adjustedX = relativeX - PADDING;
+    const adjustedY = relativeY - PADDING;
+
     const SCREEN_WIDTH = Dimensions.get('window').width;
     const SCREEN_HEIGHT = Dimensions.get('window').height;
     const AVAILABLE_HEIGHT = Platform.OS === 'web' ? SCREEN_HEIGHT - 450 : SCREEN_HEIGHT - 500;
@@ -316,62 +336,70 @@ export default function GameScreen() {
     const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
     const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-    const adjustedX = relativeX - padding;
-    const adjustedY = relativeY - padding;
+    const columnWidth = CELL_SIZE + (2 * CELL_MARGIN) + HORIZONTAL_GAP;
+    const rowHeight = CELL_SIZE + (2 * CELL_MARGIN);
 
-    const cellWithMarginWidth = CELL_SIZE + (2 * cellMargin);
-    const cellWithMarginHeight = CELL_SIZE + (2 * cellMargin);
-    const columnWidth = cellWithMarginWidth + horizontalGap;
+    let col = Math.floor((adjustedX + CELL_MARGIN) / columnWidth);
+    let row = Math.floor((adjustedY + CELL_MARGIN) / rowHeight);
 
-    let col = -1;
-    let row = -1;
+    col = Math.max(0, Math.min(14, col));
+    row = Math.max(0, Math.min(14, row));
 
-    let bestColDistance = Infinity;
-    let bestRowDistance = Infinity;
+    console.log('✅ Cell Under Finger:', {
+      cellSize: CELL_SIZE,
+      columnWidth,
+      rowHeight,
+      adjustedX: adjustedX.toFixed(1),
+      adjustedY: adjustedY.toFixed(1),
+      row,
+      col,
+    });
 
-    for (let c = 0; c < 15; c++) {
-      const cellX = c * columnWidth + cellMargin;
-      const cellCenterX = cellX + CELL_SIZE / 2;
-      const distance = Math.abs(adjustedX - cellCenterX);
-
-      if (distance < bestColDistance) {
-        bestColDistance = distance;
-        col = c;
-      }
-    }
-
-    for (let r = 0; r < 15; r++) {
-      const cellY = r * cellWithMarginHeight + cellMargin;
-      const cellCenterY = cellY + CELL_SIZE / 2;
-      const distance = Math.abs(adjustedY - cellCenterY);
-
-      if (distance < bestRowDistance) {
-        bestRowDistance = distance;
-        row = r;
-      }
-    }
-
-    if (row >= 0 && row < 15 && col >= 0 && col < 15) {
-      return { row, col };
-    }
-
-    return null;
+    return { row, col };
   }
 
   function handleTileDrag(tile: Tile, index: number, x: number, y: number) {
-    if (!currentGame || !boardLayout || !profile?.id) return;
+    if (!currentGame || !boardLayout || !profile?.id) {
+      setHoveredCell(null);
+      return;
+    }
 
-    const cell = getCellFromCoordinates(x, y);
-    setHoveredCell(cell);
+    const cellPos = getCellFromCoordinates(x, y);
+    if (!cellPos) {
+      setHoveredCell(null);
+      return;
+    }
+
+    const { row, col } = cellPos;
+    if (row < 0 || row >= 15 || col < 0 || col >= 15) {
+      setHoveredCell(null);
+      return;
+    }
+
+    const isPlayer1 = currentGame.player1_id === profile.id;
+    const board = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
+    const cell = board[row][col];
+
+    const existingTile = placedTiles.find(t => t.row === row && t.col === col);
+    const isLocked = cell.locked;
+    const canPlace = canPlaceTile(tile, placedTiles, board);
+
+    const valid = !existingTile && !isLocked && canPlace;
+
+    setHoveredCell({ row, col, valid });
   }
 
   function handleTileDragEnd(tile: Tile, index: number, x: number, y: number) {
     setHoveredCell(null);
 
-    if (!currentGame || !boardLayout || !profile?.id) return;
+    if (!currentGame || !boardLayout || !profile?.id) {
+      console.log('❌ Invalid state: missing game, layout, or profile');
+      return;
+    }
 
     const relativeY = y - boardLayout.y;
     if (relativeY > boardLayout.height + 100) {
+      console.log('🗑️ Tile dragged to discard area');
       const existingPlacement = placedTiles.find(t => t.letter === tile.letter && t.points === tile.points);
       if (existingPlacement) {
         setPlacedTiles(placedTiles.filter(t => t !== existingPlacement));
@@ -380,7 +408,10 @@ export default function GameScreen() {
     }
 
     const cellPos = getCellFromCoordinates(x, y);
-    if (!cellPos) return;
+    if (!cellPos) {
+      console.log('❌ Could not resolve cell position');
+      return;
+    }
 
     const isPlayer1 = currentGame.player1_id === profile.id;
     const board = (isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board;
@@ -388,18 +419,22 @@ export default function GameScreen() {
 
     const existingTile = placedTiles.find(t => t.row === cellPos.row && t.col === cellPos.col);
     if (existingTile) {
+      console.log(`❌ Cell [${cellPos.row},${cellPos.col}] already has a tile:`, existingTile.letter);
       return;
     }
 
     if (cell.locked) {
+      console.log(`❌ Cell [${cellPos.row},${cellPos.col}] is locked`);
       return;
     }
 
     const canPlace = canPlaceTile(tile, placedTiles, board);
     if (!canPlace) {
+      console.log(`❌ Cannot place tile ${tile.letter} - exceeds distribution limit`);
       return;
     }
 
+    console.log(`✅ Placing ${tile.letter} at [${cellPos.row},${cellPos.col}]`);
     setPlacedTiles(prevTiles => {
       const existingInPrev = prevTiles.find(t => t.row === cellPos.row && t.col === cellPos.col);
       if (existingInPrev) {
