@@ -115,8 +115,8 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
       translateY.value = event.translationY;
 
       if (onDrag) {
-        const currentX = startX.value + event.translationX;
-        const currentY = startY.value + event.translationY;
+        const currentX = event.absoluteX;
+        const currentY = event.absoluteY;
         runOnJS(onDrag)(tile, index, currentX, currentY);
       }
     })
@@ -127,8 +127,8 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
       let placedSuccessfully = false;
 
       if (onDragEnd && wasDragged) {
-        const finalX = startX.value + event.translationX;
-        const finalY = startY.value + event.translationY;
+        const finalX = event.absoluteX;
+        const finalY = event.absoluteY;
         runOnJS(onDragEnd)(tile, index, finalX, finalY);
 
         if (Math.abs(event.translationY) > 80) {

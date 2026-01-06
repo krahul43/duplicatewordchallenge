@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { BoardCell as BoardCellType } from '../types/game';
 import { FormedWord } from '../utils/gameLogic';
 
@@ -34,14 +34,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
 
   React.useEffect(() => {
     if (focusCell) {
-      const cellCenterX = (focusCell.col - 7.5) * CELL_SIZE;
-
-      const targetScale = 1.15;
-      scale.value = withTiming(targetScale, { duration: 200, easing: Easing.out(Easing.ease) });
-      savedScale.value = targetScale;
-
-      translateX.value = withTiming(-cellCenterX * 0.15, { duration: 200, easing: Easing.out(Easing.ease) });
-      savedTranslateX.value = -cellCenterX * 0.15;
+      // Disabled focus animation for instant tile placement
     }
   }, [focusCell]);
 
@@ -245,8 +238,8 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
       tileTranslateY.value = event.translationY;
 
       if (placedTile && onTileDragFromBoard) {
-        const currentX = startX.value + event.translationX;
-        const currentY = startY.value + event.translationY;
+        const currentX = event.absoluteX;
+        const currentY = event.absoluteY;
         const tileData = { row: rowIndex, col: colIndex, letter: placedTile.letter, points: placedTile.points };
         runOnJS(onTileDragFromBoard)(tileData, currentX, currentY);
       }
@@ -255,8 +248,8 @@ function BoardCell({ cell, rowIndex, colIndex, onPress, placedTile, isSelected, 
       isDragging.value = false;
 
       if (placedTile && onTileDragEndFromBoard) {
-        const finalX = startX.value + event.translationX;
-        const finalY = startY.value + event.translationY;
+        const finalX = event.absoluteX;
+        const finalY = event.absoluteY;
         const tileData = { row: rowIndex, col: colIndex, letter: placedTile.letter, points: placedTile.points };
         runOnJS(onTileDragEndFromBoard)(tileData, finalX, finalY);
       }

@@ -304,28 +304,26 @@ export default function GameScreen() {
       return null;
     }
 
-    const relativeX = x - boardLayout.x;
-    const relativeY = y - boardLayout.y;
+    const TILE_WIDTH = 52;
+    const TILE_HEIGHT = 58;
 
-    console.log('🎯 Drop Debug:', {
-      finalX: x.toFixed(2),
-      finalY: y.toFixed(2),
-      boardX: boardLayout.x.toFixed(2),
-      boardY: boardLayout.y.toFixed(2),
+    const tileCenterX = x - TILE_WIDTH / 2;
+    const tileCenterY = y - TILE_HEIGHT / 2;
+
+    const relativeX = tileCenterX - boardLayout.x;
+    const relativeY = tileCenterY - boardLayout.y;
+
+    console.log('🎯 Tile Center Debug:', {
+      fingerX: x.toFixed(2),
+      fingerY: y.toFixed(2),
+      tileCenterX: tileCenterX.toFixed(2),
+      tileCenterY: tileCenterY.toFixed(2),
       relativeX: relativeX.toFixed(2),
       relativeY: relativeY.toFixed(2),
-      boardWidth: boardLayout.width.toFixed(2),
-      boardHeight: boardLayout.height.toFixed(2),
     });
 
-    if (relativeX < 0 || relativeY < 0 || relativeX > boardLayout.width || relativeY > boardLayout.height) {
-      console.log('❌ Outside board bounds');
-      return null;
-    }
-
     const PADDING = 4;
-    const CELL_MARGIN = 1;
-    const HORIZONTAL_GAP = 2;
+    const GAP = 2;
 
     const adjustedX = relativeX - PADDING;
     const adjustedY = relativeY - PADDING;
@@ -337,21 +335,19 @@ export default function GameScreen() {
     const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
     const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-    const columnWidth = CELL_SIZE + (2 * CELL_MARGIN) + HORIZONTAL_GAP;
-    const rowHeight = CELL_SIZE + (2 * CELL_MARGIN);
+    const columnWidth = CELL_SIZE + GAP;
+    const rowHeight = CELL_SIZE;
 
-    let col = Math.floor((adjustedX + CELL_MARGIN) / columnWidth);
-    let row = Math.floor((adjustedY + CELL_MARGIN) / rowHeight);
+    let col = Math.floor(adjustedX / columnWidth);
+    let row = Math.floor(adjustedY / rowHeight);
 
-    col = Math.max(0, Math.min(14, col));
-    row = Math.max(0, Math.min(14, row));
+    if (row < 0 || row > 14 || col < 0 || col > 14) {
+      console.log('❌ Outside board bounds');
+      return null;
+    }
 
-    console.log('✅ Cell Under Finger:', {
+    console.log('✅ Cell Under Tile Center:', {
       cellSize: CELL_SIZE,
-      columnWidth,
-      rowHeight,
-      adjustedX: adjustedX.toFixed(1),
-      adjustedY: adjustedY.toFixed(1),
       row,
       col,
     });
