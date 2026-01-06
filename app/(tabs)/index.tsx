@@ -25,12 +25,43 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!profile?.id) return;
 
+    // Cleanup old games on mount
+    cleanupOldWaitingGames();
+
     loadLastActiveGame();
 
     const unsubscribe = gameService.subscribeToPlayerGames(profile.id, (games) => {
-      const activeGames = games.filter(g =>
-        g.status === 'playing' || g.status === 'paused'
-      );
+      const now = Date.now();
+      const activeGames = games.filter(g => {
+        // Only show games that are truly active
+        if (g.status !== 'playing' && g.status !== 'paused') {
+          return false;
+        }
+
+        // Both players must be present for the game to be resumable
+        if (!g.player2_id) {
+          return false;
+        }
+
+        // Don't show finished games
+        if (g.status === 'finished' || g.game_ended_at) {
+          return false;
+        }
+
+        // Check if timer has expired
+        if (g.timer_ends_at) {
+          const timerEnd = new Date(g.timer_ends_at).getTime();
+          if (now >= timerEnd) {
+            // Timer expired, mark game as finished and don't show
+            gameService.handleTimeExpired(g.id).catch(err =>
+              console.error('Failed to mark expired game as finished:', err)
+            );
+            return false;
+          }
+        }
+
+        return true;
+      });
 
       if (activeGames.length > 0) {
         const sortedGames = activeGames.sort((a, b) => {
@@ -66,9 +97,37 @@ export default function HomeScreen() {
 
     try {
       const playerGames = await gameService.getPlayerGames(profile.id);
-      const activeGames = playerGames.filter(g =>
-        g.status === 'playing' || g.status === 'paused'
-      );
+      const now = Date.now();
+      const activeGames = playerGames.filter(g => {
+        // Only show games that are truly active
+        if (g.status !== 'playing' && g.status !== 'paused') {
+          return false;
+        }
+
+        // Both players must be present for the game to be resumable
+        if (!g.player2_id) {
+          return false;
+        }
+
+        // Don't show finished games
+        if (g.status === 'finished' || g.game_ended_at) {
+          return false;
+        }
+
+        // Check if timer has expired
+        if (g.timer_ends_at) {
+          const timerEnd = new Date(g.timer_ends_at).getTime();
+          if (now >= timerEnd) {
+            // Timer expired, mark game as finished and don't show
+            gameService.handleTimeExpired(g.id).catch(err =>
+              console.error('Failed to mark expired game as finished:', err)
+            );
+            return false;
+          }
+        }
+
+        return true;
+      });
 
       if (activeGames.length > 0) {
         // Get the most recently updated game
@@ -88,6 +147,7 @@ export default function HomeScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
+    await cleanupOldWaitingGames();
     await loadLastActiveGame();
     setRefreshing(false);
   }
@@ -194,9 +254,30 @@ export default function HomeScreen() {
         const isExpired = g.join_code_expires_at &&
           new Date(g.join_code_expires_at).getTime() < now;
 
-        return isOldWaiting || isUnfinishedPrivate || isExpired;
+        // Cleanup games that ended but status wasn't updated
+        const hasEndedButNotFinished = g.game_ended_at && g.status !== 'finished';
+
+        // Cleanup games without second player after 5 minutes
+        const isStaleWaiting = g.status === 'waiting' && !g.player2_id &&
+          (now - new Date(g.created_at).getTime()) > 5 * 60 * 1000;
+
+        return isOldWaiting || isUnfinishedPrivate || isExpired || hasEndedButNotFinished || isStaleWaiting;
       });
 
+      // Separately handle games with expired timers
+      const gamesWithExpiredTimers = playerGames.filter(g => {
+        if (g.status !== 'playing' && g.status !== 'paused') return false;
+        if (!g.timer_ends_at) return false;
+        const timerEnd = new Date(g.timer_ends_at).getTime();
+        return now >= timerEnd;
+      });
+
+      // Mark expired timer games as finished
+      for (const game of gamesWithExpiredTimers) {
+        await gameService.handleTimeExpired(game.id);
+      }
+
+      // Cancel/cleanup other games
       for (const game of gamesToCleanup) {
         await gameService.cancelWaitingGame(game.id);
       }
@@ -233,7 +314,7 @@ export default function HomeScreen() {
             onPress={() => router.push(`/game/${lastActiveGame.id}`)}
           >
             <LinearGradient
-              colors={['#f59e0b', '#f97316']}
+              colors={['#06b6d4', '#0891b2']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.bannerGradient}
@@ -375,7 +456,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#f59e0b',
+    shadowColor: '#06b6d4',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 10,

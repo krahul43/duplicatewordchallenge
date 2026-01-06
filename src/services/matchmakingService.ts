@@ -66,7 +66,32 @@ export const matchmakingService = {
 
     if (existingOpponent && existingOpponent.gameId && existingOpponent.gameId !== gameId) {
       console.log(`[Matchmaking] ${displayName} found opponent ${existingOpponent.displayName}, joining game ${existingOpponent.gameId}`);
+
+      // Prevent race condition: use lexicographically smaller game ID to determine which game to join
+      // This ensures both players agree on which game to use
+      const shouldJoinOpponentGame = existingOpponent.gameId < gameId;
+
+      if (!shouldJoinOpponentGame) {
+        console.log(`[Matchmaking] ${displayName} waiting for opponent to join their game instead (game ID tiebreaker)`);
+        return gameId;
+      }
+
       try {
+        // Verify the opponent's game is still available before joining
+        const opponentGameRef = doc(db, 'games', existingOpponent.gameId);
+        const opponentGameSnap = await getDoc(opponentGameRef);
+
+        if (!opponentGameSnap.exists()) {
+          console.log(`[Matchmaking] ${displayName} opponent's game no longer exists, waiting in own game`);
+          return gameId;
+        }
+
+        const opponentGameData = opponentGameSnap.data();
+        if (opponentGameData.status !== 'waiting' || opponentGameData.player2_id) {
+          console.log(`[Matchmaking] ${displayName} opponent's game already taken, waiting in own game`);
+          return gameId;
+        }
+
         await gameService.joinGame(existingOpponent.gameId, userId);
 
         await updateDoc(requestRef, {
@@ -89,7 +114,7 @@ export const matchmakingService = {
           const myGameData = myGameSnap.data();
           if (myGameData.status === 'waiting' && !myGameData.player2_id) {
             await updateDoc(myGameRef, {
-              status: 'finished',
+              status: 'cancelled',
               updated_at: new Date().toISOString(),
             });
           }
@@ -99,6 +124,8 @@ export const matchmakingService = {
         return existingOpponent.gameId;
       } catch (error) {
         console.error(`[Matchmaking] ${displayName} failed to join existing game:`, error);
+        console.log(`[Matchmaking] ${displayName} falling back to waiting in own game`);
+        return gameId;
       }
     }
 
