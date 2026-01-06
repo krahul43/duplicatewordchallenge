@@ -57,12 +57,30 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
     }
   }, [hoveredCell, handleLayout]);
 
+  const resetZoom = () => {
+    'worklet';
+    scale.value = withTiming(1, { duration: 300 });
+    translateX.value = withTiming(0, { duration: 300 });
+    savedScale.value = 1;
+    savedTranslateX.value = 0;
+  };
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      resetZoom();
+    });
+
   const pinchGesture = Gesture.Pinch()
     .onUpdate((event) => {
-      scale.value = Math.max(1, Math.min(savedScale.value * event.scale, 3));
+      scale.value = Math.max(1, Math.min(savedScale.value * event.scale, 2.5));
     })
     .onEnd(() => {
-      savedScale.value = scale.value;
+      if (scale.value < 1.1) {
+        resetZoom();
+      } else {
+        savedScale.value = scale.value;
+      }
     });
 
   const panGesture = Gesture.Pan()
@@ -77,7 +95,7 @@ export function GameBoard({ board, onCellPress, placedTiles = [], selectedCell, 
       savedTranslateX.value = translateX.value;
     });
 
-  const composedGesture = Gesture.Race(pinchGesture, panGesture);
+  const composedGesture = Gesture.Race(doubleTapGesture, pinchGesture, panGesture);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [

@@ -55,7 +55,7 @@ export function TileRack({ tiles, onTilePress, onTileDrag, onTileDragEnd, select
   return (
     <View style={styles.container}>
       {availableTiles.length === 0 ? (
-        <Text style={styles.emptyMessage}>Loading tiles...</Text>
+        <View style={styles.emptyContainer} />
       ) : (
         availableTiles.map((tile, index) => {
           const isUsed = selectedTiles.some((st) => st === tile);
@@ -106,7 +106,7 @@ function DraggableTile({ tile, index, onPress, onDrag, onDragEnd, isUsed = false
       shouldHide.value = false;
       startX.value = event.absoluteX;
       startY.value = event.absoluteY;
-      scale.value = withTiming(1.6, { duration: 100 });
+      scale.value = withTiming(1.25, { duration: 100 });
       zIndex.value = 1000;
       opacity.value = 0.95;
     })
@@ -270,6 +270,9 @@ const styles = StyleSheet.create({
   pointsDisabled: {
     color: '#4A4A4A',
     opacity: 0.7,
+  },
+  emptyContainer: {
+    minHeight: 60,
   },
   emptyMessage: {
     color: '#fff',

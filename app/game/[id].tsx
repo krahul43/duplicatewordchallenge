@@ -39,6 +39,7 @@ export default function GameScreen() {
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number; valid: boolean } | null>(null);
   const [focusCell, setFocusCell] = useState<{ row: number; col: number } | null>(null);
   const boardRef = React.useRef<View>(null);
+  const [wordToast, setWordToast] = useState<{ word: string; points: number; visible: boolean }>({ word: '', points: 0, visible: false });
 
   const isPlayer1 = currentGame?.player1_id === profile?.id;
   const currentBoard = currentGame ? ((isPlayer1 ? currentGame.player1_board : currentGame.player2_board) || currentGame.board) : [];
@@ -627,7 +628,10 @@ export default function GameScreen() {
 
       await gameService.submitMove(id, profile.id, word, score, placedTiles);
 
-      Alert.alert('Success!', `You scored ${score} points!`);
+      setWordToast({ word, points: score, visible: true });
+      setTimeout(() => {
+        setWordToast({ word: '', points: 0, visible: false });
+      }, 3000);
 
       dispatch(clearSelectedTiles());
       setPlacedTiles([]);
@@ -947,44 +951,17 @@ export default function GameScreen() {
           onTileDragFromBoard={handleTileDragFromBoard}
           onTileDragEndFromBoard={handleTileDragEndFromBoard}
         />
+        {wordToast.visible && (
+          <View style={styles.wordToastOverlay}>
+            <View style={styles.wordToastContainer}>
+              <Text style={styles.wordToastWord}>{wordToast.word}</Text>
+              <Text style={styles.wordToastPoints}>+{wordToast.points} points</Text>
+            </View>
+          </View>
+        )}
       </View>
 
       <View style={styles.bottomSection}>
-        <View style={styles.wordBuildingArea}>
-          <View style={styles.selectedTilesContainer}>
-            {selectedTiles.length === 0 && placedTiles.length === 0 ? (
-              <View style={styles.instructionContainer}>
-                <Text style={styles.instructionTitle}>💡 How to Play</Text>
-                <Text style={styles.wordPlaceholder}>1. Tap tiles from your rack below</Text>
-                <Text style={styles.wordPlaceholder}>2. Tap empty board cells to place them</Text>
-              </View>
-            ) : selectedTiles.length > 0 ? (
-              <>
-                <Text style={styles.instructionTextActive}>👆 Tap board cells to place:</Text>
-                <View style={styles.selectedTilesRow}>
-                  {selectedTiles.map((tile, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => handleRemoveTile(index)}
-                      style={styles.selectedTile}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.selectedTileLetter}>{tile.letter}</Text>
-                      <Text style={styles.selectedTilePoints}>{tile.points}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            ) : (
-              <View style={styles.currentWordContainer}>
-                <Text style={styles.currentWordLabel}>Current Word:</Text>
-                <Text style={styles.currentWord}>{currentWord}</Text>
-                <Text style={styles.currentScore}>{totalScore} points</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
         <TileRack
           tiles={myRack.length > 0 ? myRack : (currentGame?.shared_rack as Tile[] || [])}
           onTilePress={handleTilePress}
@@ -1261,106 +1238,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
-    minHeight: 400,
+    flex: 1,
     marginTop: spacing.xs,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    position: 'relative',
+  },
+  wordToastOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    zIndex: 1000,
+  },
+  wordToastContainer: {
+    backgroundColor: '#10B981',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  wordToastWord: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 2,
+    marginBottom: spacing.xs,
+  },
+  wordToastPoints: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
   },
   bottomSection: {
     backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  wordBuildingArea: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minHeight: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  selectedTilesContainer: {
-    minHeight: 70,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-  },
-  instructionContainer: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  instructionTitle: {
-    color: '#FFD700',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  wordPlaceholder: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
-  },
-  instructionTextActive: {
-    color: '#FFD700',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
-  },
-  selectedTilesRow: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-  },
-  currentWordContainer: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  currentWordLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  currentWord: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 2,
-  },
-  currentScore: {
-    color: '#FFD700',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  selectedTile: {
-    width: 52,
-    height: 58,
-    backgroundColor: '#FAE5C8',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 5,
-    elevation: 8,
-    borderWidth: 3,
-    borderColor: '#10B981',
-    borderBottomWidth: 5,
-    borderBottomColor: '#059669',
-    position: 'relative',
-  },
-  selectedTileLetter: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#1A1A1A',
-    letterSpacing: 0.5,
-  },
-  selectedTilePoints: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#1A1A1A',
-    position: 'absolute',
-    bottom: 3,
-    right: 5,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
   },
   actionsBar: {
     flexDirection: 'row',
