@@ -1,7 +1,11 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { Award, Home, RotateCcw, Star, TrendingUp, Trophy, Zap } from 'lucide-react-native';
 import React from 'react';
-import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { colors, spacing } from '../theme/colors';
+import { Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GameSummary } from '../types/game';
+
+const { width } = Dimensions.get('window');
 
 interface GameSummaryModalProps {
   visible: boolean;
@@ -20,12 +24,12 @@ export function GameSummaryModal({
   player1Name,
   player2Name,
   onClose,
-  onPlayAgain,
 }: GameSummaryModalProps) {
   if (!summary) return null;
 
   const isPlayer1 = currentPlayerId === summary.player1_id;
   const didWin = currentPlayerId === summary.winner_id;
+  const isDraw = !summary.winner_id || summary.player1_score === summary.player2_score;
   const opponentName = isPlayer1 ? player2Name : player1Name;
 
   const myScore = isPlayer1 ? summary.player1_score : summary.player2_score;
@@ -36,515 +40,473 @@ export function GameSummaryModal({
   const opponentHighestScore = isPlayer1 ? summary.player2_highest_score : summary.player1_highest_score;
   const myMoves = isPlayer1 ? summary.player1_moves_count : summary.player2_moves_count;
   const opponentMoves = isPlayer1 ? summary.player2_moves_count : summary.player1_moves_count;
+  const myName = isPlayer1 ? player1Name : player2Name;
+
+  const mainColor = isDraw ? '#64748b' : didWin ? '#10b981' : '#ef4444';
+  const accentColor = isDraw ? '#94a3b8' : didWin ? '#34d399' : '#f87171';
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <ScrollView showsVerticalScrollIndicator={false}>
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.fullScreen}>
+        <LinearGradient
+          colors={isDraw ? ['#1e293b', '#334155'] : didWin ? ['#064e3b', '#065f46', '#047857'] : ['#7f1d1d', '#991b1b', '#b91c1c']}
+          style={styles.backgroundGradient}
+        >
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContainer}
+            bounces={false}
+          >
+            <View style={styles.container}>
+              <View style={styles.confettiContainer}>
+                {didWin && (
+                  <>
+                    <Text style={[styles.confetti, { top: 40, left: 30 }]}>🎉</Text>
+                    <Text style={[styles.confetti, { top: 60, right: 40 }]}>✨</Text>
+                    <Text style={[styles.confetti, { top: 100, left: 60 }]}>🎊</Text>
+                    <Text style={[styles.confetti, { top: 80, right: 70 }]}>⭐</Text>
+                    <Text style={[styles.confetti, { top: 120, left: 100 }]}>🏆</Text>
+                    <Text style={[styles.confetti, { top: 140, right: 90 }]}>💫</Text>
+                  </>
+                )}
+              </View>
 
-          
-          {/* <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <X size={20} color={'#fff'} fontWeight= {'700'}/>
-          </TouchableOpacity> */}
-          
+              <View style={styles.topSection}>
+                <View style={[styles.trophyCircle, { backgroundColor: mainColor }]}>
+                  {isDraw ? (
+                    <Award size={56} color="#fff" strokeWidth={2} />
+                  ) : didWin ? (
+                    <Trophy size={56} color="#fff" strokeWidth={2} />
+                  ) : (
+                    <Star size={56} color="#fff" strokeWidth={2} />
+                  )}
+                </View>
 
-          <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
-            <View>
-              <Text style={styles.resultTitle}>
-                {didWin ? 'You Won!' : 'You Lost'}
-              </Text>
-              {summary.resigned && (
-              <Text style={styles.resignedText}>
-                {opponentName} resigned
-              </Text>
-              )}
-            </View>
-            <TouchableOpacity style={{borderWidth:1, borderColor:'#AAAAAA', borderRadius:6, height:40, width:40, alignItems:'center', justifyContent:'center'}} onPress={onClose}>
-              {/* <Text style={{fontSize:20, fontWeight:'700', backgroundColor:'#e4e4ec', width:36, height:35, borderRadius:6, textAlign:'center', }}>×</Text> */}
-              <Image style={{height:32, width:32, borderRadius:6, backgroundColor:'#e4e4ec',}} source={require('../../assets/images/closeimage.png')} resizeMode='contain'/>
-            </TouchableOpacity>
-          </View>
-         
+                <Text style={styles.mainTitle}>
+                  {isDraw ? 'DRAW!' : didWin ? 'VICTORY!' : 'DEFEATED'}
+                </Text>
 
-
-
-          {/* <View style={styles.confetti}>
-            <Text style={styles.confettiText}>🎉</Text>
-            <Text style={styles.confettiText}>✨</Text>
-            <Text style={styles.confettiText}>🎊</Text>
-          </View> */}
-
-          {/* <Text style={styles.resultTitle}>
-            {didWin ? 'You Won!' : 'You Lost'}
-          </Text> */}
-
-          {/* {summary.resigned && (
-            <Text style={styles.resignedText}>
-              {opponentName} resigned
-            </Text>
-          )} */}
-
-
-          <View style={styles.playersContainer}>
-            <View style={styles.playerAvatar}>
-              <Text style={styles.avatarText}>
-                {(isPlayer1 ? player1Name : player2Name)[0].toUpperCase()}
-              </Text>
-            </View>
-            {/* <View style={styles.vsText}>
-              <Text style={styles.vsLabel}>VS</Text>
-            </View> */}
-            <View style={styles.playerAvatar}>
-              <Text style={styles.avatarText}>
-                {opponentName[0].toUpperCase()}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.namesContainer}>
-            <Text style={styles.playerName}>{isPlayer1 ? player1Name : player2Name}</Text>
-            {/* <View style={styles.heartIcon}>
-              <Text>♥</Text>
-            </View> */}
-            <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
-            <Image style={{height:15, width:15}} source={require('../../assets/images/hearticon.png')} resizeMode='contain'></Image>
-            <Text style={styles.playerName}>{opponentName}</Text>
-            </View>
-          </View>
-
-
-              <View>
-
-                <View style={styles.sectionContainer}>
-                  <View style={styles.line} />
-                    <Text style={styles.sectionText}>Top Word</Text>
-                  <View style={styles.line} />
-                </View> 
-                <View style={{  flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom:20}}>
-                  <View style={styles.statValue}>
-                    <Text style={styles.statPoints}>{myHighestScore || 0} Points</Text>
+                {summary.resigned && (
+                  <View style={styles.resignBadge}>
+                    <Text style={styles.resignText}>{opponentName} resigned</Text>
                   </View>
-                  <View style={styles.statValue}>
-                    <Text style={styles.statPoints}>{opponentHighestScore || 0} Points</Text>
-                  </View>
-                </View>
+                )}
 
-                <View style={styles.sectionContainer}>
-                  <View style={styles.line} />
-                    <Text style={styles.sectionText}>Game Score</Text>
-                  <View style={styles.line} />
-                </View>
-                <View style={[styles.statRow, {marginBottom:15}]}>
-                  <Text style={styles.scoreValue}>{myScore}</Text>
-                  <Text style={styles.scoreValue}>{opponentScore}</Text>
-                </View>
-
-                <View style={styles.sectionContainer}>
-                  <View style={styles.line} />
-                    <Text style={styles.sectionText}>Time Penalties</Text>
-                  <View style={styles.line} />
-                </View>
-                <View style={[styles.statRow, {marginBottom:0}]}>
-                  <Text style={styles.scoreValue}>{myMoves}</Text>
-                  <Text style={styles.scoreValue}>{opponentMoves}</Text>
-                </View>
-
-
-
-
-
-
-<Image source={require('../../assets/images/infoicon.png')} style={{height:20, width:20, alignSelf:'center', tintColor:'gray', marginBottom:12}} resizeMode='contain'/>
-
-{/* color. image of info */}
-
-                <View style={styles.sectionContainer}>
-                  <View style={styles.line} />
-                    <Text style={styles.sectionText}>Leftover Tiles</Text>
-                  <View style={styles.line} />
-                </View>
-                <View style={[styles.statRow, {marginBottom:20}]}>
-                  <Text style={styles.scoreValue}>{myMoves}</Text>
-                  <Text style={styles.scoreValue}>{opponentMoves}</Text>
-                </View>
-
-                <View style={styles.sectionContainer}>
-                  <View style={styles.line} />
-                    <Text style={styles.sectionText}>Total Score</Text>
-                  <View style={styles.line} />
-                </View>
-                 <View style={styles.statRow}>
-                    <Text style={[styles.totalScore, didWin && styles.winnerScore]}>{myScore}</Text>
-                    <Text style={[styles.sectionText, {color:'lightgray'}]}>Close Game!</Text>
-                    <Text style={[styles.totalScore, !didWin && styles.winnerScore]}>{opponentScore}</Text>
-                  </View>
-
-              </View>
-
-
-
-
-                <View style={[styles.sectionContainer, {marginTop:20}]}>
-                  <View style={styles.line} />
-                    <View style={[styles.word_style,{marginRight:5}]}>
-                    <Text style={styles.sectionText1}>P</Text>
-                    </View>
-                     <View style={[styles.word_style,{marginRight:5}]}>
-                    <Text style={styles.sectionText1}>L</Text>
-                    </View>
-                     <View style={[styles.word_style,{marginRight:5}]}>
-                    <Text style={styles.sectionText1}>A</Text>
-                    </View>
-                     <View style={styles.word_style}>
-                    <Text style={styles.sectionText1}>Y</Text>
-                    </View>
-                  <View style={styles.line} />
-                </View>
-
-
-
-
-
-          {/* <View style={styles.statsContainer}>
-            <View style={styles.statSection}>
-              <Text style={styles.statLabel}>Top Word</Text>
-              <View style={styles.statRow}>
-                <View style={styles.statValue}>
-                  <Text style={styles.statWord}>{myHighestWord || '-'}</Text>
-                  <Text style={styles.statPoints}>{myHighestScore || 0} Points</Text>
-                </View>
-                <View style={styles.statValue}>
-                  <Text style={styles.statWord}>{opponentHighestWord || '-'}</Text>
-                  <Text style={styles.statPoints}>{opponentHighestScore || 0} Points</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.statSection}>
-              <Text style={styles.statLabel}>Game Score</Text>
-              <View style={styles.statRow}>
-                <Text style={styles.scoreValue}>{myScore}</Text>
-                <Text style={styles.scoreValue}>{opponentScore}</Text>
-              </View>
-            </View>
-            <View style={styles.statSection}>
-              <Text style={styles.statLabel}>Total Moves</Text>
-              <View style={styles.statRow}>
-                <Text style={styles.scoreValue}>{myMoves}</Text>
-                <Text style={styles.scoreValue}>{opponentMoves}</Text>
-              </View>
-            </View>
-            <View style={styles.statSection}>
-              <Text style={styles.statLabel}>Game Duration</Text>
-              <View style={styles.statRow}>
-                <Text style={styles.scoreValue} numberOfLines={1}>
-                  {summary.duration_minutes} min
+                <Text style={styles.subtitle}>
+                  {isDraw ? 'Evenly matched!' : didWin ? 'Outstanding performance!' : 'Better luck next time!'}
                 </Text>
               </View>
-            </View>
-            <View style={styles.statSection}>
-              <Text style={styles.statLabel}>Total Score</Text>
-              <View style={styles.statRow}>
-                <Text style={[styles.totalScore, didWin && styles.winnerScore]}>{myScore}</Text>
-                <Text style={[styles.totalScore, !didWin && styles.winnerScore]}>{opponentScore}</Text>
+
+              <View style={styles.scoreComparisonSection}>
+                <View style={styles.playerCard}>
+                  <View style={styles.playerHeader}>
+                    <View style={[styles.playerAvatar, { backgroundColor: mainColor }]}>
+                      <Text style={styles.playerInitial}>{myName[0].toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.playerNameLabel}>YOU</Text>
+                  </View>
+                  <Text style={styles.playerName}>{myName}</Text>
+                  <View style={[styles.scoreCircle, didWin && styles.winnerScoreCircle]}>
+                    <Text style={[styles.scoreNumber, didWin && styles.winnerScoreNumber]}>
+                      {myScore}
+                    </Text>
+                    <Text style={styles.scoreLabel}>POINTS</Text>
+                  </View>
+                </View>
+
+                <View style={styles.vsSection}>
+                  <View style={styles.vsLine} />
+                  <View style={styles.vsBadge}>
+                    <Text style={styles.vsText}>VS</Text>
+                  </View>
+                  <View style={styles.vsLine} />
+                </View>
+
+                <View style={styles.playerCard}>
+                  <View style={styles.playerHeader}>
+                    <View style={[styles.playerAvatar, { backgroundColor: '#6b7280' }]}>
+                      <Text style={styles.playerInitial}>{opponentName[0].toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.playerNameLabel}>OPPONENT</Text>
+                  </View>
+                  <Text style={styles.playerName}>{opponentName}</Text>
+                  <View style={[styles.scoreCircle, !didWin && !isDraw && styles.winnerScoreCircle]}>
+                    <Text style={[styles.scoreNumber, !didWin && !isDraw && styles.winnerScoreNumber]}>
+                      {opponentScore}
+                    </Text>
+                    <Text style={styles.scoreLabel}>POINTS</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.statsSection}>
+                <Text style={styles.statsSectionTitle}>MATCH STATISTICS</Text>
+
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <Zap size={24} color="#fbbf24" fill="#fbbf24" />
+                  </View>
+                  <View style={styles.statContent}>
+                    <Text style={styles.statTitle}>Best Word</Text>
+                    <View style={styles.statComparison}>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statWord}>{myHighestWord || '-'}</Text>
+                        <Text style={styles.statValue}>{myHighestScore || 0} pts</Text>
+                      </View>
+                      <View style={styles.statDividerVertical} />
+                      <View style={styles.statItem}>
+                        <Text style={styles.statWord}>{opponentHighestWord || '-'}</Text>
+                        <Text style={styles.statValue}>{opponentHighestScore || 0} pts</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <TrendingUp size={24} color="#3b82f6" />
+                  </View>
+                  <View style={styles.statContent}>
+                    <Text style={styles.statTitle}>Total Moves</Text>
+                    <View style={styles.statComparison}>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statValueLarge}>{myMoves}</Text>
+                      </View>
+                      <View style={styles.statDividerVertical} />
+                      <View style={styles.statItem}>
+                        <Text style={styles.statValueLarge}>{opponentMoves}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={() => {
+                    onClose();
+                    router.push('/');
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <LinearGradient
+                    colors={['#3b82f6', '#2563eb']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.primaryButtonGradient}
+                  >
+                    <RotateCcw size={22} color="#fff" strokeWidth={2.5} />
+                    <Text style={styles.primaryButtonText}>Play Again</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={onClose}
+                  activeOpacity={0.85}
+                >
+                  <Home size={20} color="#fff" strokeWidth={2.5} />
+                  <Text style={styles.secondaryButtonText}>Back to Home</Text>
+                </TouchableOpacity>
               </View>
             </View>
-          </View> */}
-
-
-
-
-
-
-
-
-
-          <View style={{flexDirection:'row', paddingVertical:25, justifyContent:'center', gap:30}}>
-              <View style={{alignItems:'center'}}>
-              <TouchableOpacity style={{ backgroundColor:'#ed9898', borderColor:'#960000', borderRadius:10, borderWidth:0.5, height:45, width:48, alignItems:'center', justifyContent:'center'}} onPress={onClose}>
-                <Image source={require('../../assets/images/gameconsole.png')} style={{height:35, width:35, borderWidth:0.5, borderColor:'#960000', borderRadius:6,  backgroundColor:'#d22b2b',}} resizeMode='contain'/>
-              </TouchableOpacity>
-              <Text style={{fontSize:17, textAlign:'center',}}>ONLINE</Text>
-            </View>
-
-          <View style={{alignItems:'center'}}>
-              <TouchableOpacity style={{ backgroundColor:'#fff8dc', borderColor:'#fad5a5', borderRadius:10, borderWidth:0.5, height:45, width:48, alignItems:'center', justifyContent:'center'}} onPress={onClose}>
-                <Image source={require('../../assets/images/usericon.png')} style={{height:35, width:35, borderWidth:0.5, borderColor:'#fad5a5', borderRadius:6,  backgroundColor:'#ffd700',}} resizeMode='contain'/>
-              </TouchableOpacity>
-              <Text style={{fontSize:17, textAlign:'center',}}>FRIEND</Text>
-            </View>
-            <View style={{alignItems:'center'}}>
-              <TouchableOpacity style={{ backgroundColor:'#b4d6d6', borderColor:'#088f8f', borderRadius:10, borderWidth:0.5, height:45, width:48, alignItems:'center', justifyContent:'center'}} onPress={onClose}>
-                <Image source={require('../../assets/images/computericon.png')} style={{height:35, width:35, borderWidth:0.5, borderColor:'#088f8f', borderRadius:6,  backgroundColor:'#57abab',}} resizeMode='contain'/>
-              </TouchableOpacity>
-              <Text style={{fontSize:17, textAlign:'center',}}>COMPUTER</Text>
-            </View>
-           
-          </View>
-
-
-
-
-
-
-
-
-
-
-          {onPlayAgain && (
-            <View style={styles.actionsContainer}>
-              <TouchableOpacity style={styles.playAgainButton} onPress={onPlayAgain}>
-                <Text style={styles.playAgainText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+          </ScrollView>
+        </LinearGradient>
       </View>
-      </ScrollView>
-
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  fullScreen: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    // padding: spacing.lg,
   },
-  modal: {
-    backgroundColor: '#fff',
-    // borderRadius: 20,
-    // padding: spacing.xl,
-    width: '100%',
-    height:'100%',
-    // maxWidth: 400,
-    // position: 'relative',
-    paddingLeft:20,
-    paddingVertical:20,
-    paddingRight:30
+  backgroundGradient: {
+    flex: 1,
   },
-  closeButton: {
+  scrollContainer: {
+    flexGrow: 1,
+    paddingVertical: 40,
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  confettiContainer: {
     position: 'absolute',
-    top: spacing.md,
-    right: spacing.md,
-    zIndex: 10,
-    width: 36,
-    height: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor:'#C9D2D9',
-    borderRadius:6,
+    width: '100%',
+    height: 200,
+    zIndex: 0,
   },
   confetti: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  confettiText: {
-    fontSize: 28,
-  },
-  resultTitle: {
+    position: 'absolute',
     fontSize: 32,
-    fontWeight: '800',
-    // textAlign: 'center',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
+    opacity: 0.7,
   },
-  resignedText: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    // textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  playersContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  topSection: {
     alignItems: 'center',
-    marginVertical: spacing.md,
-    gap: spacing.md,
+    marginTop: 20,
+    marginBottom: 40,
+  },
+  trophyCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  mainTitle: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  resignBadge: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  resignText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  subtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 8,
+    letterSpacing: 0.5,
+  },
+  scoreComparisonSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+    gap: 12,
+  },
+  playerCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  playerHeader: {
+    alignItems: 'center',
+    marginBottom: 12,
   },
   playerAvatar: {
-    width: 36,
-    height: 35,
-    // borderRadius: 30,
-    borderRadius:6,
-    backgroundColor: colors.text,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: '700',
+  playerInitial: {
+    fontSize: 24,
+    fontWeight: '900',
     color: '#fff',
   },
-  vsText: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 8,
-  },
-  vsLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text.secondary,
-  },
-  namesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width:'100%',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-    // paddingHorizontal: spacing.md,
+  playerNameLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 1.5,
   },
   playerName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.primary,
-    // flex: 1,
-    // textAlign: 'center',
-  },
-  heartIcon: {
-    marginHorizontal: spacing.sm,
-  },
-  statsContainer: {
-    gap: spacing.md,
-  },
-  statSection: {
-    gap: spacing.xs,
-  },
-  statLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text.secondary,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 16,
     textAlign: 'center',
   },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  scoreCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.md,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
-  statValue: {
-    // flex: 1,
+  winnerScoreCircle: {
+    borderColor: '#fbbf24',
+    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+  },
+  scoreNumber: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#fff',
+  },
+  winnerScoreNumber: {
+    color: '#fbbf24',
+  },
+  scoreLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+  vsSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  vsLine: {
+    width: 2,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  vsBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  vsText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 1,
+  },
+  statsSection: {
+    marginBottom: 32,
+  },
+  statsSectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 2,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  statCard: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  statContent: {
+    flex: 1,
+  },
+  statTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 12,
+    letterSpacing: 0.5,
+  },
+  statComparison: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  statItem: {
+    flex: 1,
     alignItems: 'center',
   },
   statWord: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text.primary,
-    textTransform: 'uppercase',
-  },
-  statPoints: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  scoreValue: {
-    fontSize: 24,
-    // fontWeight: '700',
-    color: 'gray',
-    // flex: 1,
-    textAlign: 'center',
-  },
-  totalScore: {
-    fontSize: 32,
+    fontSize: 18,
     fontWeight: '800',
-    color: colors.text.primary,
-    // flex: 1,
-    textAlign: 'center',
+    color: '#fff',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+    letterSpacing: 1,
   },
-  winnerScore: {
-    color: colors.success,
+  statValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.7)',
   },
-  actionsContainer: {
-    marginTop: spacing.xl,
-    gap: spacing.sm,
-  },
-  playAgainButton: {
-    // backgroundColor: colors.primary,
-    backgroundColor:colors.success,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 2,
-    shadowOffset: { width: 10, height: 13 },
-    shadowRadius: 6,
-    elevation: 6,
-  },
-
-
-
-  playAgainText: {
-    fontSize: 16,
-    fontWeight: '700',
+  statValueLarge: {
+    fontSize: 28,
+    fontWeight: '900',
     color: '#fff',
   },
-
-
-
-
-
-
-
-
-
-
-word_style:{
-  backgroundColor:'#ffe4b5',
-  height:35,
-  width:35,
-  alignItems:'center',
-  justifyContent:'center',
-  borderWidth:2,
-  borderRadius:6,
-  borderColor:'#ffd700',
-},
-
-
-
-
-
-
-
-
-  sectionContainer: {
+  statDividerVertical: {
+    width: 2,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  actionButtons: {
+    gap: 12,
+    paddingBottom: 20,
+  },
+  primaryButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  primaryButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    // marginVertical: 15,
+    paddingVertical: 18,
+    gap: 12,
   },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E2E2E8',
-    minWidth: 40,       // ⭐ left-right line size match ho jayega
+  primaryButtonText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.5,
   },
-  sectionText: {
-    marginHorizontal: 12,
-    fontSize: 14,
-    color: 'gray',
-    fontWeight: '600',
-    textAlign: 'center',
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-
-    sectionText1:{
-       marginHorizontal: 12,
-    fontSize: 14,
-    color: 'black',
-    fontWeight: '900',
-    textAlign: 'center',
-    },
-
-
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
 });

@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, Dimensions, Platform, ScrollView, StyleSheet,
 import { useDispatch, useSelector } from 'react-redux';
 import { GameBoard } from '../../src/components/GameBoard';
 import { GameEndModal } from '../../src/components/GameEndModal';
+import { GameSummaryModal } from '../../src/components/GameSummaryModal';
 import { GameTimer } from '../../src/components/GameTimer';
 import { TileBagViewer } from '../../src/components/TileBagViewer';
 import { TileRack } from '../../src/components/TileRack';
@@ -74,7 +75,7 @@ export default function GameScreen() {
         startGame(game);
       }
 
-      if (game.status === 'finished' && !showSummary) {
+      if (game.status === 'finished' && !showSummary && !gameSummary) {
         loadGameSummary();
         if (profile?.id && profile?.display_name) {
           presenceService.setUserOnline(profile.id, profile.display_name);
@@ -97,7 +98,7 @@ export default function GameScreen() {
         presenceService.setUserOnline(profile.id, profile.display_name);
       }
     };
-  }, [id, opponentProfile, profile?.id]);
+  }, [id, opponentProfile, profile?.id, showSummary, gameSummary]);
 
   async function loadOpponentProfile(game: Game) {
     if (!profile?.id) return;
@@ -724,6 +725,24 @@ export default function GameScreen() {
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#fff" />
         <Text style={{ color: '#fff', marginTop: 16 }}>Loading game...</Text>
+      </View>
+    );
+  }
+
+  if (currentGame.status === 'finished' && gameSummary) {
+    return (
+      <View style={styles.container}>
+        <GameSummaryModal
+          visible={true}
+          summary={gameSummary}
+          currentPlayerId={profile?.id || ''}
+          player1Name={currentGame.player1_display_name || 'Player 1'}
+          player2Name={currentGame.player2_display_name || 'Player 2'}
+          onClose={() => router.back()}
+          onPlayAgain={() => {
+            router.replace('/');
+          }}
+        />
       </View>
     );
   }
