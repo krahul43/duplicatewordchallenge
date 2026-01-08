@@ -34,7 +34,7 @@ export default function GameScreen() {
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [validatingWord, setValidatingWord] = useState(false);
   const [opponentProfile, setOpponentProfile] = useState<{ displayName: string; id: string } | null>(null);
-  const [pauseRequestShown, setPauseRequestShown] = useState(false);
+  const pauseRequestShownRef = React.useRef(false);
   const [showTileBag, setShowTileBag] = useState(false);
   const [boardLayout, setBoardLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number; valid: boolean } | null>(null);
@@ -136,13 +136,22 @@ export default function GameScreen() {
         startGame(game);
       }
 
-      if (game.pause_status === 'requested' && game.pause_requested_by && game.pause_requested_by !== profile?.id && !pauseRequestShown) {
-        setPauseRequestShown(true);
+      console.log('🔔 Pause Status Check:', {
+        pause_status: game.pause_status,
+        pause_requested_by: game.pause_requested_by,
+        my_id: profile?.id,
+        is_request_for_me: game.pause_requested_by !== profile?.id,
+        already_shown: pauseRequestShownRef.current,
+      });
+
+      if (game.pause_status === 'requested' && game.pause_requested_by && game.pause_requested_by !== profile?.id && !pauseRequestShownRef.current) {
+        console.log('✅ Showing pause request alert');
+        pauseRequestShownRef.current = true;
         showPauseRequest();
       }
 
       if (game.pause_status === 'none') {
-        setPauseRequestShown(false);
+        pauseRequestShownRef.current = false;
       }
     });
 
@@ -352,20 +361,14 @@ export default function GameScreen() {
       return null;
     }
 
-    const TILE_WIDTH = 52;
-    const TILE_HEIGHT = 58;
+    const relativeX = x - boardLayout.x;
+    const relativeY = y - boardLayout.y;
 
-    const tileCenterX = x - TILE_WIDTH / 2;
-    const tileCenterY = y - TILE_HEIGHT / 2;
-
-    const relativeX = tileCenterX - boardLayout.x;
-    const relativeY = tileCenterY - boardLayout.y;
-
-    console.log('🎯 Tile Center Debug:', {
-      fingerX: x.toFixed(2),
-      fingerY: y.toFixed(2),
-      tileCenterX: tileCenterX.toFixed(2),
-      tileCenterY: tileCenterY.toFixed(2),
+    console.log('🎯 Touch Position Debug:', {
+      touchX: x.toFixed(2),
+      touchY: y.toFixed(2),
+      boardX: boardLayout.x.toFixed(2),
+      boardY: boardLayout.y.toFixed(2),
       relativeX: relativeX.toFixed(2),
       relativeY: relativeY.toFixed(2),
     });
@@ -394,7 +397,7 @@ export default function GameScreen() {
       return null;
     }
 
-    console.log('✅ Cell Under Tile Center:', {
+    console.log('✅ Cell Under Touch Point:', {
       cellSize: CELL_SIZE,
       row,
       col,
@@ -689,7 +692,21 @@ export default function GameScreen() {
   }
 
   async function handleRequestPause() {
-    if (!id || typeof id !== 'string' || !profile?.id) return;
+    if (!id || typeof id !== 'string' || !profile?.id || !currentGame) return;
+
+    if (currentGame.status !== 'playing') {
+      Alert.alert('Cannot Pause', 'Game must be in progress to pause');
+      return;
+    }
+
+    if (currentGame.pause_status === 'requested') {
+      if (currentGame.pause_requested_by === profile.id) {
+        Alert.alert('Pause Requested', 'Waiting for opponent to accept your pause request...');
+      } else {
+        Alert.alert('Pause Request Pending', 'Your opponent requested a pause. Please respond to their request.');
+      }
+      return;
+    }
 
     try {
       await gameService.requestPause(id, profile.id);
@@ -952,7 +969,9 @@ export default function GameScreen() {
 
         <View style={[styles.turnIndicator, styles.turnIndicatorMyTurn]}>
           <Text style={styles.turnText}>
-            {currentGame.status === 'playing' ? '⚡ Both Playing' : 'Game'}
+            {currentGame.pause_status === 'requested'
+              ? (currentGame.pause_requested_by === profile?.id ? '⏸️ Pause Requested' : '⏸️ Pause Request')
+              : currentGame.status === 'playing' ? '⚡ Both Playing' : 'Game'}
           </Text>
         </View>
 
@@ -962,7 +981,14 @@ export default function GameScreen() {
               <Play size={20} color="#fff" />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={handleRequestPause} style={styles.pauseButton}>
+            <TouchableOpacity
+              onPress={handleRequestPause}
+              style={[
+                styles.pauseButton,
+                currentGame.pause_status === 'requested' && styles.pauseButtonDisabled
+              ]}
+              disabled={currentGame.pause_status === 'requested'}
+            >
               <Pause size={20} color="#fff" />
             </TouchableOpacity>
           )}
@@ -1174,6 +1200,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  pauseButtonDisabled: {
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    opacity: 0.5,
   },
   resignButton: {
     width: 40,

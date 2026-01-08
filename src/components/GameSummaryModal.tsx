@@ -31,6 +31,8 @@ export function GameSummaryModal({
   const didWin = currentPlayerId === summary.winner_id;
   const isDraw = !summary.winner_id || summary.player1_score === summary.player2_score;
   const opponentName = isPlayer1 ? player2Name : player1Name;
+  const didIResign = summary.resigned_player_id === currentPlayerId;
+  const resignedPlayerName = didIResign ? 'You' : opponentName;
 
   const myScore = isPlayer1 ? summary.player1_score : summary.player2_score;
   const opponentScore = isPlayer1 ? summary.player2_score : summary.player1_score;
@@ -88,7 +90,7 @@ export function GameSummaryModal({
 
                 {summary.resigned && (
                   <View style={styles.resignBadge}>
-                    <Text style={styles.resignText}>{opponentName} resigned</Text>
+                    <Text style={styles.resignText}>{resignedPlayerName} resigned</Text>
                   </View>
                 )}
 

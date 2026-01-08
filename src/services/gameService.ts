@@ -76,6 +76,8 @@ export const gameService = {
       player2_moves_count: 0,
       player1_submitted: false,
       player2_submitted: false,
+      pause_status: 'none',
+      pause_requested_by: null,
       game_duration_seconds: timerDuration,
       is_private: isPrivate,
       dictionary: 'en',
