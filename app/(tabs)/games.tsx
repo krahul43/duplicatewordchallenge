@@ -12,15 +12,23 @@ export default function GamesScreen() {
   const profile = useSelector((state: RootState) => state.auth.profile);
   const [activeGames, setActiveGames] = useState<Game[]>([]);
   const [completedGames, setCompletedGames] = useState<Game[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!profile?.id) return;
 
-    loadGames();
+    let isCleanupDone = false;
+
+    // Initial load with cleanup
+    loadGames().then(() => {
+      isCleanupDone = true;
+    });
 
     const unsubscribe = gameService.subscribeToPlayerGames(profile.id, (games) => {
+      // Don't update from subscription until initial cleanup is done
+      if (!isCleanupDone) return;
+
       const now = Date.now();
 
       const active = games.filter(g => {
@@ -231,7 +239,10 @@ export default function GamesScreen() {
     return (
       <TouchableOpacity
         key={game.id}
-        onPress={() => router.push(`/game/${game.id}`)}
+        onPress={() => router.push({
+          pathname: `/game/${game.id}`,
+          params: { gameData: JSON.stringify(game) }
+        })}
         activeOpacity={0.8}
       >
         <LinearGradient

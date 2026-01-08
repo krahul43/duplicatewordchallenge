@@ -21,7 +21,7 @@ import { validateWordWithDictionary } from '../../src/utils/dictionaryApi';
 import { canPlaceTile, getAllFormedWords, isBoardEmpty, isValidWord, wordConnectsToBoard, wordCoversCenter } from '../../src/utils/gameLogic';
 
 export default function GameScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, gameData } = useLocalSearchParams();
   const dispatch = useDispatch();
   const profile = useSelector((state: RootState) => state.auth.profile);
   const { currentGame, myRack, selectedTiles } = useSelector((state: RootState) => state.game);
@@ -53,15 +53,76 @@ export default function GameScreen() {
   useEffect(() => {
     if (!id || typeof id !== 'string' || !profile?.id) return;
 
+    // Fast path: if game data is passed and game is finished, show summary immediately
+    if (gameData && typeof gameData === 'string') {
+      try {
+        const game: Game = JSON.parse(gameData);
+        if (game.status === 'finished') {
+          dispatch(setCurrentGame(game));
+
+          // Create minimal summary from game data for instant display
+          const minimalSummary: GameSummary = {
+            game_id: game.id,
+            winner_id: game.winner_id || '',
+            player1_id: game.player1_id,
+            player2_id: game.player2_id || '',
+            player1_score: game.player1_score || 0,
+            player2_score: game.player2_score || 0,
+            player1_final_score: game.player1_score || 0,
+            player2_final_score: game.player2_score || 0,
+            player1_remaining_tiles_penalty: 0,
+            player2_remaining_tiles_penalty: 0,
+            player1_highest_word: '',
+            player1_highest_score: 0,
+            player2_highest_word: '',
+            player2_highest_score: 0,
+            player1_moves_count: 0,
+            player2_moves_count: 0,
+            total_moves: 0,
+            duration_minutes: 0,
+            resigned: game.resigned || false,
+            resigned_player_id: game.resigned_player_id,
+            rounds: [],
+          };
+
+          setGameSummary(minimalSummary);
+          setShowSummary(true);
+
+          // Load full summary in background to get detailed stats
+          gameService.getGameSummary(id).then(summary => {
+            if (summary) setGameSummary(summary);
+          });
+
+          // No need to set presence for finished games
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to parse game data:', e);
+      }
+    }
+
     presenceService.setInGame(profile.id, id);
 
     loadGame();
 
-    const unsubscribe = gameService.subscribeToGame(id, (game) => {
+    const unsubscribe = gameService.subscribeToGame(id, async (game) => {
       if (!game) return;
 
       if (game.player1_id !== profile.id && game.player2_id !== profile.id) {
         console.log('User is not part of this game, ignoring updates');
+        return;
+      }
+
+      if (game.status === 'finished' && !showSummary && !gameSummary) {
+        const summary = await gameService.getGameSummary(id);
+        if (summary) {
+          setGameSummary(summary);
+          setShowSummary(true);
+        }
+        dispatch(setCurrentGame(game));
+        if (profile?.id && profile?.display_name) {
+          presenceService.setUserOnline(profile.id, profile.display_name);
+        }
         return;
       }
 
@@ -73,13 +134,6 @@ export default function GameScreen() {
 
       if (game.status === 'waiting' && game.player2_id) {
         startGame(game);
-      }
-
-      if (game.status === 'finished' && !showSummary && !gameSummary) {
-        loadGameSummary();
-        if (profile?.id && profile?.display_name) {
-          presenceService.setUserOnline(profile.id, profile.display_name);
-        }
       }
 
       if (game.pause_status === 'requested' && game.pause_requested_by && game.pause_requested_by !== profile?.id && !pauseRequestShown) {
@@ -98,7 +152,7 @@ export default function GameScreen() {
         presenceService.setUserOnline(profile.id, profile.display_name);
       }
     };
-  }, [id, opponentProfile, profile?.id, showSummary, gameSummary]);
+  }, [id, gameData, profile?.id]);
 
   async function loadOpponentProfile(game: Game) {
     if (!profile?.id) return;
@@ -118,20 +172,6 @@ export default function GameScreen() {
       }
     } catch (error) {
       console.error('Failed to load opponent profile:', error);
-    }
-  }
-
-  async function loadGameSummary() {
-    if (!id || typeof id !== 'string') return;
-
-    try {
-      const summary = await gameService.getGameSummary(id);
-      if (summary) {
-        setGameSummary(summary);
-        setShowSummary(true);
-      }
-    } catch (error) {
-      console.error('Failed to load game summary:', error);
     }
   }
 
@@ -239,14 +279,21 @@ export default function GameScreen() {
         return;
       }
 
+      if (game.status === 'finished') {
+        console.log('[GameScreen] Game is finished, loading summary immediately');
+        const summary = await gameService.getGameSummary(id);
+        if (summary) {
+          setGameSummary(summary);
+          setShowSummary(true);
+        }
+        dispatch(setCurrentGame(game));
+        return;
+      }
+
       dispatch(setCurrentGame(game));
 
       if (game.status === 'waiting' && game.player2_id) {
         startGame(game);
-      }
-
-      if (game.status === 'finished') {
-        console.log('[GameScreen] Game is finished, loading summary');
       }
     } catch (error) {
       console.error('[GameScreen] Failed to load game:', error);
@@ -725,6 +772,15 @@ export default function GameScreen() {
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#fff" />
         <Text style={{ color: '#fff', marginTop: 16 }}>Loading game...</Text>
+      </View>
+    );
+  }
+
+  if (currentGame.status === 'finished' && !gameSummary) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={{ color: '#fff', marginTop: 16 }}>Loading game summary...</Text>
       </View>
     );
   }

@@ -33,6 +33,18 @@ export const gameService = {
     const gameRef = doc(collection(db, 'games'));
     console.log('[GameService] 🆕 Generated NEW game ID:', gameRef.id);
 
+    let player1DisplayName = 'Player 1';
+    try {
+      const player1Ref = doc(db, 'profiles', playerId);
+      const player1Snap = await getDoc(player1Ref);
+      if (player1Snap.exists()) {
+        const profileData = player1Snap.data();
+        player1DisplayName = profileData.display_name || profileData.displayName || 'Player 1';
+      }
+    } catch (error) {
+      console.error('Error fetching player profile:', error);
+    }
+
     const player1Board = initializeBoard();
     const player2Board = initializeBoard();
     const sharedTileBag = generateTileBag();
@@ -49,7 +61,9 @@ export const gameService = {
     const gameData: any = {
       id: gameRef.id,
       player1_id: playerId,
+      player1_display_name: player1DisplayName,
       player2_id: null,
+      player2_display_name: null,
       status: 'waiting',
       player1_board: flattenBoard(player1Board),
       player2_board: flattenBoard(player2Board),
@@ -58,6 +72,8 @@ export const gameService = {
       player2_rack: player2Rack,
       player1_score: 0,
       player2_score: 0,
+      player1_moves_count: 0,
+      player2_moves_count: 0,
       player1_submitted: false,
       player2_submitted: false,
       game_duration_seconds: timerDuration,
@@ -122,11 +138,24 @@ export const gameService = {
       }
     }
 
+    let player2DisplayName = 'Player 2';
+    try {
+      const player2Ref = doc(db, 'profiles', playerId);
+      const player2Snap = await getDoc(player2Ref);
+      if (player2Snap.exists()) {
+        const profileData = player2Snap.data();
+        player2DisplayName = profileData.display_name || profileData.displayName || 'Player 2';
+      }
+    } catch (error) {
+      console.error('Error fetching player profile:', error);
+    }
+
     const gameDuration = gameData.game_duration_seconds || 300;
     const timerEnd = new Date(Date.now() + gameDuration * 1000).toISOString();
 
     await updateDoc(gameRef, {
       player2_id: playerId,
+      player2_display_name: player2DisplayName,
       status: 'playing',
       timer_ends_at: timerEnd,
       game_started_at: new Date().toISOString(),
@@ -409,6 +438,7 @@ export const gameService = {
     if (isPlayer1) {
       updateData.player1_rack = updatedRack;
       updateData.player1_score = newScore;
+      updateData.player1_moves_count = (game.player1_moves_count || 0) + 1;
 
       if (!game.player1_highest_score || score > game.player1_highest_score) {
         updateData.player1_highest_word = word;
@@ -417,6 +447,7 @@ export const gameService = {
     } else {
       updateData.player2_rack = updatedRack;
       updateData.player2_score = newScore;
+      updateData.player2_moves_count = (game.player2_moves_count || 0) + 1;
 
       if (!game.player2_highest_score || score > game.player2_highest_score) {
         updateData.player2_highest_word = word;
@@ -655,6 +686,9 @@ export const gameService = {
       game.player1_id
     );
 
+    const player1MovesCount = game.player1_moves_count || 0;
+    const player2MovesCount = game.player2_moves_count || 0;
+
     return {
       game_id: game.id,
       winner_id: game.winner_id || game.player1_id,
@@ -670,9 +704,9 @@ export const gameService = {
       player1_highest_score: game.player1_highest_score || 0,
       player2_highest_word: game.player2_highest_word || '',
       player2_highest_score: game.player2_highest_score || 0,
-      player1_moves_count: game.player1_moves_count,
-      player2_moves_count: game.player2_moves_count,
-      total_moves: game.player1_moves_count + game.player2_moves_count,
+      player1_moves_count: player1MovesCount,
+      player2_moves_count: player2MovesCount,
+      total_moves: player1MovesCount + player2MovesCount,
       duration_minutes: durationMinutes,
       resigned: !!game.resigned_player_id,
       resigned_player_id: game.resigned_player_id,
