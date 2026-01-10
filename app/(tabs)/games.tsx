@@ -115,6 +115,13 @@ export default function GamesScreen() {
       : (game.player1_display_name || 'Opponent');
   }
 
+  function getMyName(game: Game): string {
+    const isPlayer1 = game.player1_id === profile?.id;
+    return isPlayer1
+      ? (game.player1_display_name || 'You')
+      : (game.player2_display_name || 'You');
+  }
+
   function getMyScore(game: Game): number {
     const isPlayer1 = game.player1_id === profile?.id;
     return isPlayer1 ? (game.player1_score || 0) : (game.player2_score || 0);
@@ -155,6 +162,7 @@ export default function GamesScreen() {
 
   function renderActiveGame(game: Game) {
     const opponent = getOpponentName(game);
+    const myName = getMyName(game);
     const myScore = getMyScore(game);
     const opponentScore = getOpponentScore(game);
     const isWaiting = game.status === 'waiting';
@@ -195,7 +203,7 @@ export default function GamesScreen() {
           {!isWaiting && (
             <View style={styles.scoreRow}>
               <View style={styles.scoreItem}>
-                <Text style={styles.scoreLabel}>You</Text>
+                <Text style={styles.scoreLabel}>{myName}</Text>
                 <Text style={styles.scoreValue}>{myScore}</Text>
               </View>
               <View style={styles.scoreDivider} />
@@ -227,6 +235,7 @@ export default function GamesScreen() {
 
   function renderCompletedGame(game: Game) {
     const opponent = getOpponentName(game);
+    const myName = getMyName(game);
     const myScore = getMyScore(game);
     const opponentScore = getOpponentScore(game);
     const result = getGameResult(game);
@@ -265,7 +274,7 @@ export default function GamesScreen() {
 
           <View style={styles.completedScoreRow}>
             <View style={styles.completedScoreItem}>
-              <Text style={styles.completedScoreLabel}>You</Text>
+              <Text style={styles.completedScoreLabel}>{myName}</Text>
               <Text style={styles.completedScoreValue}>{myScore}</Text>
             </View>
             <View style={styles.completedScoreDivider}>
