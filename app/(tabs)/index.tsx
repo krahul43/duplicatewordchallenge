@@ -240,6 +240,30 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
+        {subscription.status === 'trialing' && (subscription.daysLeftInTrial || 0) <= 3 && (
+          <TouchableOpacity
+            style={styles.trialWarning}
+            onPress={() => router.push('/subscription-required')}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={['#dc2626', '#b91c1c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.trialWarningGradient}
+            >
+              <Text style={styles.trialWarningEmoji}>⏰</Text>
+              <View style={styles.trialWarningContent}>
+                <Text style={styles.trialWarningTitle}>
+                  {subscription.daysLeftInTrial === 0 ? 'Trial ends today!' : `${subscription.daysLeftInTrial} day${subscription.daysLeftInTrial === 1 ? '' : 's'} left in trial`}
+                </Text>
+                <Text style={styles.trialWarningSubtitle}>Tap to subscribe and keep playing</Text>
+              </View>
+              <Text style={styles.trialWarningArrow}>›</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.logoSection}>
           <Image
             style={styles.logo}
@@ -372,6 +396,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 58,
     paddingBottom: 40,
+  },
+  trialWarning: {
+    marginBottom: 14,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  trialWarningGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  trialWarningEmoji: {
+    fontSize: 22,
+  },
+  trialWarningContent: {
+    flex: 1,
+  },
+  trialWarningTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  trialWarningSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '500',
+  },
+  trialWarningArrow: {
+    fontSize: 22,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '700',
   },
   resumeBanner: {
     marginBottom: 22,

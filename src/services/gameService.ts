@@ -587,11 +587,17 @@ export const gameService = {
 
     const gameRef = doc(db, 'games', gameId);
 
-    const winnerId = game.player1_score > game.player2_score ? game.player1_id : game.player2_id;
+    const winnerId = game.player1_score > game.player2_score
+      ? game.player1_id
+      : game.player2_score > game.player1_score
+      ? game.player2_id
+      : null;
 
     const endData = {
       status: 'finished',
       winner_id: winnerId,
+      player1_remaining_tiles: game.player1_rack || [],
+      player2_remaining_tiles: game.player2_rack || [],
       game_ended_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -693,6 +699,8 @@ export const gameService = {
     await updateDoc(gameRef, {
       status: 'finished',
       winner_id: winnerId,
+      player1_remaining_tiles: game.player1_rack || [],
+      player2_remaining_tiles: game.player2_rack || [],
       resigned_player_id: playerId,
       game_ended_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
