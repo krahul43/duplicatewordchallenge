@@ -24,42 +24,22 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!profile?.id) return;
-
-    // Cleanup old games on mount
     cleanupOldWaitingGames();
-
     loadLastActiveGame();
 
     const unsubscribe = gameService.subscribeToPlayerGames(profile.id, (games) => {
       const now = Date.now();
       const activeGames = games.filter(g => {
-        // Only show games that are truly active
-        if (g.status !== 'playing' && g.status !== 'paused') {
-          return false;
-        }
-
-        // Both players must be present for the game to be resumable
-        if (!g.player2_id) {
-          return false;
-        }
-
-        // Don't show finished games
-        if (g.status === 'finished' || g.game_ended_at) {
-          return false;
-        }
-
-        // Check if timer has expired
+        if (g.status !== 'playing' && g.status !== 'paused') return false;
+        if (!g.player2_id) return false;
+        if (g.status === 'finished' || g.game_ended_at) return false;
         if (g.timer_ends_at) {
           const timerEnd = new Date(g.timer_ends_at).getTime();
           if (now >= timerEnd) {
-            // Timer expired, mark game as finished and don't show
-            gameService.handleTimeExpired(g.id).catch(err =>
-              console.error('Failed to mark expired game as finished:', err)
-            );
+            gameService.handleTimeExpired(g.id).catch(err => console.error('Failed to mark expired game as finished:', err));
             return false;
           }
         }
-
         return true;
       });
 
@@ -94,43 +74,24 @@ export default function HomeScreen() {
 
   async function loadLastActiveGame() {
     if (!profile) return;
-
     try {
       const playerGames = await gameService.getPlayerGames(profile.id);
       const now = Date.now();
       const activeGames = playerGames.filter(g => {
-        // Only show games that are truly active
-        if (g.status !== 'playing' && g.status !== 'paused') {
-          return false;
-        }
-
-        // Both players must be present for the game to be resumable
-        if (!g.player2_id) {
-          return false;
-        }
-
-        // Don't show finished games
-        if (g.status === 'finished' || g.game_ended_at) {
-          return false;
-        }
-
-        // Check if timer has expired
+        if (g.status !== 'playing' && g.status !== 'paused') return false;
+        if (!g.player2_id) return false;
+        if (g.status === 'finished' || g.game_ended_at) return false;
         if (g.timer_ends_at) {
           const timerEnd = new Date(g.timer_ends_at).getTime();
           if (now >= timerEnd) {
-            // Timer expired, mark game as finished and don't show
-            gameService.handleTimeExpired(g.id).catch(err =>
-              console.error('Failed to mark expired game as finished:', err)
-            );
+            gameService.handleTimeExpired(g.id).catch(err => console.error('Failed to mark expired game as finished:', err));
             return false;
           }
         }
-
         return true;
       });
 
       if (activeGames.length > 0) {
-        // Get the most recently updated game
         const sortedGames = activeGames.sort((a, b) => {
           const dateA = new Date(a.updated_at || a.created_at).getTime();
           const dateB = new Date(b.updated_at || b.created_at).getTime();
@@ -153,23 +114,12 @@ export default function HomeScreen() {
   }
 
   async function handleQuickPlay() {
-    if (!canPlay()) {
-      router.push('/subscription-required');
-      return;
-    }
-
+    if (!canPlay()) { router.push('/subscription-required'); return; }
     if (!profile?.id || !profile?.display_name) return;
-
     setLoading(true);
-
     try {
       await matchmakingService.cleanupOldRequests(profile.id);
-
-      const gameId = await matchmakingService.joinMatchmaking(
-        profile.id,
-        profile.display_name
-      );
-
+      const gameId = await matchmakingService.joinMatchmaking(profile.id, profile.display_name);
       router.push(`/matchmaking/${gameId}`);
     } catch (error) {
       console.error('Failed to start matchmaking:', error);
@@ -179,105 +129,49 @@ export default function HomeScreen() {
     }
   }
 
-    async function createNewGame(isPrivate: boolean) {
-    if (!canPlay()) {
-      router.push('/subscription-required');
-      return;
-    }
-
-    if (!profile?.id) {
-      console.error('[HomeScreen] No profile ID');
-      return;
-    }
-
-    console.log('[HomeScreen] ========== CREATE NEW GAME START ==========');
-    console.log('[HomeScreen] User ID:', profile.id);
-    console.log('[HomeScreen] Is Private:', isPrivate);
-
+  async function createNewGame(isPrivate: boolean) {
+    if (!canPlay()) { router.push('/subscription-required'); return; }
+    if (!profile?.id) return;
     setLoading(true);
-
     try {
       dispatch(resetGame());
-      console.log('[HomeScreen] Reset game state in Redux');
-
-      console.log('[HomeScreen] Cleaning up old games...');
       await cleanupOldWaitingGames();
-      console.log('[HomeScreen] Cleanup completed');
-
       if (isPrivate) {
-        console.log('[HomeScreen] Cleaning up old matchmaking request for private game...');
-        try {
-          await matchmakingService.cancelMatchmaking(profile.id);
-        } catch (error) {
-          console.log('[HomeScreen] No matchmaking request to clean up');
-        }
+        try { await matchmakingService.cancelMatchmaking(profile.id); } catch (error) {}
       }
-
-      console.log('[HomeScreen] Creating new game in Firebase...');
       const gameId = await gameService.createGame(profile.id, isPrivate);
-      console.log('[HomeScreen] ✅ NEW GAME CREATED! ID:', gameId);
-      console.log('[HomeScreen] Game ID length:', gameId?.length);
-      console.log('[HomeScreen] Game ID type:', typeof gameId);
-
-      if (!gameId || typeof gameId !== 'string') {
-        throw new Error('Invalid game ID received from createGame');
-      }
-
+      if (!gameId || typeof gameId !== 'string') throw new Error('Invalid game ID received');
       await new Promise(resolve => setTimeout(resolve, 500));
-
-      console.log('[HomeScreen] ========== NAVIGATING TO MATCHMAKING ==========');
-      console.log('[HomeScreen] Target route:', `/matchmaking/${gameId}`);
-
-      // Use push instead of replace to ensure proper navigation
       router.push(`/matchmaking/${gameId}`);
-      console.log('[HomeScreen] Navigation completed');
     } catch (error) {
-      console.error('[HomeScreen] ❌ Failed to create game:', error);
+      console.error('Failed to create game:', error);
       Alert.alert('Error', 'Failed to create game. Please try again.');
     } finally {
       setLoading(false);
-      console.log('[HomeScreen] ========== CREATE NEW GAME END ==========');
     }
   }
 
   async function cleanupOldWaitingGames() {
     if (!profile?.id) return;
-
     try {
       const playerGames = await gameService.getPlayerGames(profile.id);
       const now = Date.now();
-
       const gamesToCleanup = playerGames.filter(g => {
         const isOldWaiting = g.status === 'waiting' || g.status === 'cancelled';
         const isUnfinishedPrivate = g.status === 'finished' && g.is_private && !g.player2_id;
-
-        const isExpired = g.join_code_expires_at &&
-          new Date(g.join_code_expires_at).getTime() < now;
-
-        // Cleanup games that ended but status wasn't updated
+        const isExpired = g.join_code_expires_at && new Date(g.join_code_expires_at).getTime() < now;
         const hasEndedButNotFinished = g.game_ended_at && g.status !== 'finished';
-
-        // Cleanup games without second player after 5 minutes
-        const isStaleWaiting = g.status === 'waiting' && !g.player2_id &&
-          (now - new Date(g.created_at).getTime()) > 5 * 60 * 1000;
-
+        const isStaleWaiting = g.status === 'waiting' && !g.player2_id && (now - new Date(g.created_at).getTime()) > 5 * 60 * 1000;
         return isOldWaiting || isUnfinishedPrivate || isExpired || hasEndedButNotFinished || isStaleWaiting;
       });
-
-      // Separately handle games with expired timers
       const gamesWithExpiredTimers = playerGames.filter(g => {
         if (g.status !== 'playing' && g.status !== 'paused') return false;
         if (!g.timer_ends_at) return false;
-        const timerEnd = new Date(g.timer_ends_at).getTime();
-        return now >= timerEnd;
+        return now >= new Date(g.timer_ends_at).getTime();
       });
-
-      // Mark expired timer games as finished
       for (const game of gamesWithExpiredTimers) {
         await gameService.handleTimeExpired(game.id);
       }
-
-      // Cancel/cleanup other games
       for (const game of gamesToCleanup) {
         await gameService.cancelWaitingGame(game.id);
       }
@@ -290,12 +184,16 @@ export default function HomeScreen() {
     return subscription.status === 'trialing' || subscription.status === 'active';
   }
 
+  const firstName = profile?.display_name?.split(' ')[0] || 'Player';
+
   return (
-    <LinearGradient
-      colors={['#eff6ff', '#f0f9ff', '#fef3c7', '#fef3c7']}
-      locations={[0, 0.3, 0.7, 1]}
-      style={styles.container}
-    >
+    <LinearGradient colors={['#0d0d1a', '#13132a', '#0d0d1a']} style={styles.container}>
+      <View style={styles.bgDecor}>
+        <View style={[styles.bgBlob, { top: -60, right: -60, backgroundColor: '#4c1d95', width: 220, height: 220 }]} />
+        <View style={[styles.bgBlob, { top: 300, left: -80, backgroundColor: '#1e3a5f', width: 180, height: 180 }]} />
+        <View style={[styles.bgBlob, { bottom: 100, right: -40, backgroundColor: '#0e4d4d', width: 160, height: 160 }]} />
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -303,54 +201,46 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#667eea"
-            colors={['#667eea']}
+            tintColor="#a78bfa"
+            colors={['#a78bfa']}
           />
         }
       >
         {lastActiveGame && (
           <TouchableOpacity
-            style={styles.gameInProgressBanner}
+            style={styles.resumeBanner}
             onPress={() => router.push(`/game/${lastActiveGame.id}`)}
+            activeOpacity={0.85}
           >
             <LinearGradient
-              colors={['#06b6d4', '#0891b2']}
+              colors={['#0891b2', '#0e7490']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.bannerGradient}
+              style={styles.resumeGradient}
             >
-              <View style={styles.bannerIconContainer}>
-                <Play size={22} color="#fff" fill="#fff" />
+              <View style={styles.resumeIconCircle}>
+                <Play size={20} color="#fff" fill="#fff" />
               </View>
-              <View style={styles.bannerContent}>
-                <Text style={styles.bannerTitle}>Resume Your Game</Text>
-                <View style={styles.bannerDetails}>
-                  <Text style={styles.bannerOpponent}>
-                    vs {lastActiveGame.player1_id === profile?.id
-                      ? (lastActiveGame.player2_display_name || 'Waiting...')
-                      : (lastActiveGame.player1_display_name || 'Opponent')}
+              <View style={styles.resumeContent}>
+                <Text style={styles.resumeTitle}>Resume Game</Text>
+                <Text style={styles.resumeSubtitle}>
+                  vs {lastActiveGame.player1_id === profile?.id
+                    ? (lastActiveGame.player2_display_name || 'Waiting...')
+                    : (lastActiveGame.player1_display_name || 'Opponent')}
+                  {'  '}
+                  <Text style={styles.resumeScore}>
+                    {lastActiveGame.player1_id === profile?.id ? lastActiveGame.player1_score || 0 : lastActiveGame.player2_score || 0}
+                    {' — '}
+                    {lastActiveGame.player1_id === profile?.id ? lastActiveGame.player2_score || 0 : lastActiveGame.player1_score || 0}
                   </Text>
-                  <View style={styles.bannerScores}>
-                    <Text style={styles.bannerScore}>
-                      {lastActiveGame.player1_id === profile?.id
-                        ? lastActiveGame.player1_score || 0
-                        : lastActiveGame.player2_score || 0}
-                    </Text>
-                    <Text style={styles.bannerScoreDivider}>-</Text>
-                    <Text style={styles.bannerScore}>
-                      {lastActiveGame.player1_id === profile?.id
-                        ? lastActiveGame.player2_score || 0
-                        : lastActiveGame.player1_score || 0}
-                    </Text>
-                  </View>
-                </View>
+                </Text>
               </View>
-              <Sparkles size={20} color="#fff" />
+              <Sparkles size={18} color="rgba(255,255,255,0.7)" />
             </LinearGradient>
           </TouchableOpacity>
         )}
 
-        <View style={styles.logoContainer}>
+        <View style={styles.logoSection}>
           <Image
             style={styles.logo}
             source={require('../../assets/images/logo.png')}
@@ -358,61 +248,74 @@ export default function HomeScreen() {
           />
         </View>
 
-        <View style={styles.welcomeCard}>
+        <View style={styles.greetCard}>
           <LinearGradient
-            colors={['#667eea', '#764ba2']}
+            colors={['rgba(99,102,241,0.25)', 'rgba(139,92,246,0.15)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.welcomeGradient}
+            style={styles.greetGradient}
           >
-            <Sparkles size={24} color="#fff" fill="#fff" />
-            <Text style={styles.welcomeTitle}>Ready to Play?</Text>
-            <Text style={styles.welcomeSubtitle}>
-              Challenge friends or find opponents worldwide!
-            </Text>
+            <View style={styles.greetTop}>
+              <View>
+                <Text style={styles.greetHello}>Hello, {firstName} 👋</Text>
+                <Text style={styles.greetTagline}>Ready to battle with words?</Text>
+              </View>
+              <View style={styles.greetBadge}>
+                <Sparkles size={14} color="#a78bfa" />
+                <Text style={styles.greetBadgeText}>{canPlay() ? 'Active' : 'Expired'}</Text>
+              </View>
+            </View>
           </LinearGradient>
+        </View>
+
+        <View style={styles.sectionLabel}>
+          <View style={styles.sectionLine} />
+          <Text style={styles.sectionLabelText}>START A GAME</Text>
+          <View style={styles.sectionLine} />
         </View>
 
         <View style={styles.actions}>
           <TouchableOpacity
             onPress={handleQuickPlay}
             disabled={loading}
-            activeOpacity={0.8}
+            activeOpacity={0.82}
+            style={styles.actionCardWrapper}
           >
             <LinearGradient
-              colors={['#ec4899', '#db2777']}
+              colors={['#9333ea', '#7c3aed']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.primaryButton}
+              style={styles.actionCard}
             >
-              <View style={styles.buttonIconContainer}>
-                <Users size={26} color="#fff" strokeWidth={2.5} />
+              <View style={styles.actionIconCircle}>
+                <Users size={28} color="#fff" strokeWidth={2} />
               </View>
-              <View style={styles.buttonTextContainer}>
-                <Text style={styles.buttonTitle}>Find a Match</Text>
-                <Text style={styles.buttonSubtitle}>Play with random opponent</Text>
+              <View style={styles.actionTextBlock}>
+                <Text style={styles.actionTitle}>Quick Match</Text>
+                <Text style={styles.actionSubtitle}>Play vs a random opponent</Text>
               </View>
-              <Zap size={20} color="rgba(255,255,255,0.8)" />
+              <Zap size={22} color="rgba(255,255,255,0.6)" />
             </LinearGradient>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => createNewGame(true)}
             disabled={loading}
-            activeOpacity={0.8}
+            activeOpacity={0.82}
+            style={styles.actionCardWrapper}
           >
             <LinearGradient
-              colors={['#3b82f6', '#2563eb']}
+              colors={['#2563eb', '#1d4ed8']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.secondaryButton}
+              style={styles.actionCard}
             >
-              <View style={styles.buttonIconContainer}>
-                <UserIcon size={26} color="#fff" strokeWidth={2.5} />
+              <View style={styles.actionIconCircle}>
+                <UserIcon size={28} color="#fff" strokeWidth={2} />
               </View>
-              <View style={styles.buttonTextContainer}>
-                <Text style={styles.buttonTitle}>Play a Friend</Text>
-                <Text style={styles.buttonSubtitle}>Private game with code</Text>
+              <View style={styles.actionTextBlock}>
+                <Text style={styles.actionTitle}>Play a Friend</Text>
+                <Text style={styles.actionSubtitle}>Create a private game code</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
@@ -420,23 +323,32 @@ export default function HomeScreen() {
           <TouchableOpacity
             onPress={() => router.push('/join-game')}
             disabled={loading}
-            activeOpacity={0.8}
+            activeOpacity={0.82}
+            style={styles.actionCardWrapper}
           >
             <LinearGradient
-              colors={['#10b981', '#059669']}
+              colors={['#0891b2', '#0e7490']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.secondaryButton}
+              style={styles.actionCard}
             >
-              <View style={styles.buttonIconContainer}>
-                <KeyRound size={26} color="#fff" strokeWidth={2.5} />
+              <View style={styles.actionIconCircle}>
+                <KeyRound size={28} color="#fff" strokeWidth={2} />
               </View>
-              <View style={styles.buttonTextContainer}>
-                <Text style={styles.buttonTitle}>Join with Code</Text>
-                <Text style={styles.buttonSubtitle}>Enter friend&apos;s game code</Text>
+              <View style={styles.actionTextBlock}>
+                <Text style={styles.actionTitle}>Join with Code</Text>
+                <Text style={styles.actionSubtitle}>Enter a friend's game code</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.decorTiles}>
+          {['D', 'W', 'C', ''].map((letter, i) => (
+            <View key={i} style={[styles.decorTile, { opacity: 0.06 + i * 0.03 }]}>
+              {letter ? <Text style={styles.decorTileLetter}>{letter}</Text> : null}
+            </View>
+          ))}
         </View>
       </ScrollView>
     </LinearGradient>
@@ -447,155 +359,192 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  bgDecor: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  bgBlob: {
+    position: 'absolute',
+    borderRadius: 999,
+    opacity: 0.18,
+  },
   content: {
-    padding: 20,
-    paddingTop: 60,
+    paddingHorizontal: 22,
+    paddingTop: 58,
     paddingBottom: 40,
   },
-  gameInProgressBanner: {
-    marginBottom: 24,
-    borderRadius: 16,
+  resumeBanner: {
+    marginBottom: 22,
+    borderRadius: 18,
     overflow: 'hidden',
-    shadowColor: '#06b6d4',
+    shadowColor: '#0891b2',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  bannerGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  bannerIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bannerContent: {
-    flex: 1,
-  },
-  bannerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  bannerDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  bannerOpponent: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  bannerScores: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  bannerScore: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  bannerScoreDivider: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 28,
-    marginTop: 8,
-  },
-  logo: {
-    width: width * 0.85,
-    height: 180,
-  },
-  welcomeCard: {
-    marginBottom: 32,
-    borderRadius: 22,
-    overflow: 'hidden',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  welcomeGradient: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  welcomeTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  welcomeSubtitle: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  actions: {
-    gap: 18,
-  },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    borderRadius: 20,
-    shadowColor: '#ec4899',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 10,
   },
-  secondaryButton: {
+  resumeGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 12,
   },
-  buttonIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  resumeIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
   },
-  buttonTextContainer: {
+  resumeContent: {
     flex: 1,
   },
-  buttonTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 4,
+  resumeTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 2,
   },
-  buttonSubtitle: {
+  resumeSubtitle: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
+  },
+  resumeScore: {
+    fontWeight: '800',
+    color: '#fff',
+  },
+  logoSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: width * 0.82,
+    height: 160,
+  },
+  greetCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.2)',
+  },
+  greetGradient: {
+    padding: 20,
+  },
+  greetTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  greetHello: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  greetTagline: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '500',
+  },
+  greetBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(167,139,250,0.15)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.25)',
+  },
+  greetBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#a78bfa',
+  },
+  sectionLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 18,
+  },
+  sectionLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  sectionLabelText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: 1.5,
+  },
+  actions: {
+    gap: 14,
+  },
+  actionCardWrapper: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  actionIconCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionTextBlock: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  actionSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.65)',
+    fontWeight: '500',
+  },
+  decorTiles: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 32,
+  },
+  decorTile: {
+    width: 36,
+    height: 42,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  decorTileLetter: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.3)',
   },
 });

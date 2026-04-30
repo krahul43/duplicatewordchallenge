@@ -1,17 +1,25 @@
 import { Tabs } from 'expo-router';
 import { Home, Settings, Trophy } from 'lucide-react-native';
-import { colors } from '../../src/theme/colors';
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarActiveTintColor: '#a78bfa',
+        tabBarInactiveTintColor: 'rgba(255,255,255,0.3)',
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.background,
+          backgroundColor: '#0d0d1a',
+          borderTopColor: 'rgba(255,255,255,0.07)',
+          borderTopWidth: 1,
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 64,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+          letterSpacing: 0.3,
         },
       }}>
       <Tabs.Screen
