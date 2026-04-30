@@ -374,10 +374,11 @@ export default function GameScreen() {
     });
 
     const PADDING = 4;
+    const MARGIN = 1;
     const GAP = 2;
 
-    const adjustedX = relativeX - PADDING;
-    const adjustedY = relativeY - PADDING;
+    const adjustedX = relativeX - PADDING - MARGIN;
+    const adjustedY = relativeY - PADDING - MARGIN;
 
     const SCREEN_WIDTH = Dimensions.get('window').width;
     const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -386,8 +387,8 @@ export default function GameScreen() {
     const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
     const CELL_SIZE = Math.floor(MAX_SIZE / 15);
 
-    const columnWidth = CELL_SIZE + GAP;
-    const rowHeight = CELL_SIZE;
+    const columnWidth = CELL_SIZE + GAP + MARGIN * 2;
+    const rowHeight = CELL_SIZE + MARGIN * 2;
 
     let col = Math.floor(adjustedX / columnWidth);
     let row = Math.floor(adjustedY / rowHeight);

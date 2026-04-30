@@ -1,7 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Award, Home, RotateCcw, Star, TrendingUp, Trophy, Zap } from 'lucide-react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GameSummary } from '../types/game';
-import { Trophy, Award, TrendingUp, Clock, Zap } from 'lucide-react-native';
+
+const { width } = Dimensions.get('window');
 
 interface GameEndModalProps {
   visible: boolean;
@@ -12,13 +15,54 @@ interface GameEndModalProps {
 }
 
 export function GameEndModal({ visible, summary, currentPlayerId, onClose, onNewGame }: GameEndModalProps) {
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const trophyBounce = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      scaleAnim.setValue(0.85);
+      opacityAnim.setValue(0);
+      trophyBounce.setValue(-20);
+      shimmerAnim.setValue(0);
+
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 6,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(trophyBounce, {
+          toValue: 0,
+          friction: 5,
+          tension: 60,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      Animated.loop(
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    }
+  }, [visible]);
+
   if (!summary) return null;
 
   const isWinner = summary.winner_id === currentPlayerId;
+  const isDraw = !summary.winner_id || summary.player1_score === summary.player2_score;
   const isPlayer1 = summary.player1_id === currentPlayerId;
-
-  const playerScore = isPlayer1 ? summary.player1_score : summary.player2_score;
-  const opponentScore = isPlayer1 ? summary.player2_score : summary.player1_score;
 
   const playerFinalScore = isPlayer1 ? summary.player1_final_score : summary.player2_final_score;
   const opponentFinalScore = isPlayer1 ? summary.player2_final_score : summary.player1_final_score;
@@ -36,129 +80,185 @@ export function GameEndModal({ visible, summary, currentPlayerId, onClose, onNew
 
   const iResigned = summary.resigned_player_id === currentPlayerId;
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            <View style={[styles.header, isWinner ? styles.winnerHeader : styles.loserHeader]}>
-              <Trophy size={48} color="#FFF" />
-              <Text style={styles.headerTitle}>
-                {summary.resigned ? 'Game Ended' : (isWinner ? 'Victory!' : 'Game Over')}
-              </Text>
-              {summary.resigned && (
-                <Text style={styles.resignedText}>
-                  {iResigned ? 'You resigned' : 'Opponent resigned'}
-                </Text>
-              )}
-            </View>
+  const gradColors: [string, string, string] = isDraw
+    ? ['#1e293b', '#334155', '#475569']
+    : isWinner
+    ? ['#064e3b', '#065f46', '#047857']
+    : ['#7f1d1d', '#991b1b', '#b91c1c'];
 
-            <View style={styles.finalScoresContainer}>
-              <Text style={styles.sectionTitle}>Final Scores</Text>
+  const accentColor = isDraw ? '#94a3b8' : isWinner ? '#34d399' : '#f87171';
+  const highlightColor = isDraw ? '#64748b' : isWinner ? '#10b981' : '#ef4444';
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
+        <Animated.View style={[styles.sheet, { transform: [{ scale: scaleAnim }] }]}>
+          <LinearGradient colors={gradColors} style={styles.gradient}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              bounces={false}
+            >
+              <View style={styles.heroSection}>
+                {isWinner && (
+                  <View style={styles.confettiRow}>
+                    {['🎉', '✨', '🎊', '⭐', '💫'].map((e, i) => (
+                      <Text key={i} style={styles.confetti}>{e}</Text>
+                    ))}
+                  </View>
+                )}
+
+                <Animated.View
+                  style={[
+                    styles.trophyRing,
+                    { backgroundColor: highlightColor, transform: [{ translateY: trophyBounce }] },
+                  ]}
+                >
+                  {isDraw ? (
+                    <Award size={52} color="#fff" strokeWidth={2} />
+                  ) : isWinner ? (
+                    <Trophy size={52} color="#fff" strokeWidth={2} />
+                  ) : (
+                    <Star size={52} color="#fff" strokeWidth={2} />
+                  )}
+                </Animated.View>
+
+                <Text style={styles.resultTitle}>
+                  {isDraw ? 'DRAW!' : isWinner ? 'VICTORY!' : 'DEFEATED'}
+                </Text>
+
+                {summary.resigned && (
+                  <View style={styles.resignedBadge}>
+                    <Text style={styles.resignedText}>
+                      {iResigned ? 'You resigned' : 'Opponent resigned'}
+                    </Text>
+                  </View>
+                )}
+
+                <Text style={styles.resultSubtitle}>
+                  {isDraw
+                    ? 'Evenly matched!'
+                    : isWinner
+                    ? 'Outstanding performance!'
+                    : 'Better luck next time!'}
+                </Text>
+              </View>
 
               <View style={styles.scoreRow}>
-                <View style={[styles.playerScoreBox, isWinner && styles.winnerBox]}>
-                  <Text style={styles.playerLabel}>You</Text>
-                  <Text style={styles.finalScore}>{playerFinalScore}</Text>
-                  {isWinner && <Award size={20} color="#4CAF50" />}
+                <View style={[styles.scoreCard, isWinner && styles.scoreCardWinner]}>
+                  <View style={[styles.avatarCircle, { backgroundColor: highlightColor }]}>
+                    <Text style={styles.avatarText}>Y</Text>
+                  </View>
+                  <Text style={styles.scoreCardLabel}>YOU</Text>
+                  <View style={[styles.scoreDisc, isWinner && styles.scoreDiscWinner]}>
+                    <Text style={[styles.scoreNum, isWinner && styles.scoreNumWinner]}>
+                      {playerFinalScore}
+                    </Text>
+                    <Text style={styles.scoreUnit}>PTS</Text>
+                  </View>
+                  {playerPenalty > 0 && (
+                    <Text style={styles.penaltyNote}>-{playerPenalty} tiles</Text>
+                  )}
                 </View>
 
-                <View style={[styles.playerScoreBox, !isWinner && styles.winnerBox]}>
-                  <Text style={styles.playerLabel}>Opponent</Text>
-                  <Text style={styles.finalScore}>{opponentFinalScore}</Text>
-                  {!isWinner && <Award size={20} color="#4CAF50" />}
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.breakdownContainer}>
-              <Text style={styles.sectionTitle}>Score Breakdown</Text>
-
-              <View style={styles.breakdownTable}>
-                <View style={styles.breakdownHeader}>
-                  <Text style={styles.breakdownHeaderText}>Metric</Text>
-                  <Text style={styles.breakdownHeaderText}>You</Text>
-                  <Text style={styles.breakdownHeaderText}>Opponent</Text>
+                <View style={styles.vsDivider}>
+                  <View style={styles.vsLine} />
+                  <View style={styles.vsBadge}>
+                    <Text style={styles.vsText}>VS</Text>
+                  </View>
+                  <View style={styles.vsLine} />
                 </View>
 
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Points Earned</Text>
-                  <Text style={styles.breakdownValue}>{playerScore}</Text>
-                  <Text style={styles.breakdownValue}>{opponentScore}</Text>
-                </View>
-
-                <View style={[styles.breakdownRow, styles.alternateRow]}>
-                  <Text style={styles.breakdownLabel}>Remaining Tiles</Text>
-                  <Text style={[styles.breakdownValue, styles.penaltyText]}>-{playerPenalty}</Text>
-                  <Text style={[styles.breakdownValue, styles.penaltyText]}>-{opponentPenalty}</Text>
-                </View>
-
-                <View style={styles.breakdownRow}>
-                  <Text style={[styles.breakdownLabel, styles.boldText]}>Final Score</Text>
-                  <Text style={[styles.breakdownValue, styles.boldText]}>{playerFinalScore}</Text>
-                  <Text style={[styles.breakdownValue, styles.boldText]}>{opponentFinalScore}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.statsContainer}>
-              <Text style={styles.sectionTitle}>Game Statistics</Text>
-
-              <View style={styles.statRow}>
-                <View style={styles.statItem}>
-                  <TrendingUp size={20} color="#2196F3" />
-                  <Text style={styles.statLabel}>Highest Word</Text>
-                  <Text style={styles.statValue}>{playerHighestWord || 'N/A'}</Text>
-                  <Text style={styles.statSubvalue}>({playerHighestScore} pts)</Text>
-                </View>
-
-                <View style={styles.statItem}>
-                  <TrendingUp size={20} color="#FF9800" />
-                  <Text style={styles.statLabel}>Opponent's Best</Text>
-                  <Text style={styles.statValue}>{opponentHighestWord || 'N/A'}</Text>
-                  <Text style={styles.statSubvalue}>({opponentHighestScore} pts)</Text>
+                <View style={[styles.scoreCard, !isWinner && !isDraw && styles.scoreCardWinner]}>
+                  <View style={[styles.avatarCircle, { backgroundColor: '#6b7280' }]}>
+                    <Text style={styles.avatarText}>O</Text>
+                  </View>
+                  <Text style={styles.scoreCardLabel}>OPP</Text>
+                  <View style={[styles.scoreDisc, !isWinner && !isDraw && styles.scoreDiscWinner]}>
+                    <Text style={[styles.scoreNum, !isWinner && !isDraw && styles.scoreNumWinner]}>
+                      {opponentFinalScore}
+                    </Text>
+                    <Text style={styles.scoreUnit}>PTS</Text>
+                  </View>
+                  {opponentPenalty > 0 && (
+                    <Text style={styles.penaltyNote}>-{opponentPenalty} tiles</Text>
+                  )}
                 </View>
               </View>
 
-              <View style={styles.statRow}>
-                <View style={styles.statItem}>
-                  <Zap size={20} color="#9C27B0" />
-                  <Text style={styles.statLabel}>Your Moves</Text>
-                  <Text style={styles.statValue}>{playerMoves}</Text>
+              <View style={styles.statsSection}>
+                <Text style={styles.statsSectionLabel}>MATCH STATS</Text>
+
+                <View style={styles.statCard}>
+                  <View style={[styles.statIconBg, { backgroundColor: 'rgba(251,191,36,0.2)' }]}>
+                    <Zap size={22} color="#fbbf24" fill="#fbbf24" />
+                  </View>
+                  <View style={styles.statBody}>
+                    <Text style={styles.statLabel}>Best Word</Text>
+                    <View style={styles.statCompare}>
+                      <View style={styles.statSide}>
+                        <Text style={styles.statWord}>{playerHighestWord || '—'}</Text>
+                        <Text style={styles.statPts}>{playerHighestScore} pts</Text>
+                      </View>
+                      <View style={styles.statDivider} />
+                      <View style={styles.statSide}>
+                        <Text style={styles.statWord}>{opponentHighestWord || '—'}</Text>
+                        <Text style={styles.statPts}>{opponentHighestScore} pts</Text>
+                      </View>
+                    </View>
+                  </View>
                 </View>
 
-                <View style={styles.statItem}>
-                  <Zap size={20} color="#FF5722" />
-                  <Text style={styles.statLabel}>Opponent Moves</Text>
-                  <Text style={styles.statValue}>{opponentMoves}</Text>
+                <View style={styles.statCard}>
+                  <View style={[styles.statIconBg, { backgroundColor: 'rgba(59,130,246,0.2)' }]}>
+                    <TrendingUp size={22} color="#3b82f6" />
+                  </View>
+                  <View style={styles.statBody}>
+                    <Text style={styles.statLabel}>Total Moves</Text>
+                    <View style={styles.statCompare}>
+                      <View style={styles.statSide}>
+                        <Text style={styles.statBigNum}>{playerMoves}</Text>
+                      </View>
+                      <View style={styles.statDivider} />
+                      <View style={styles.statSide}>
+                        <Text style={styles.statBigNum}>{opponentMoves}</Text>
+                      </View>
+                    </View>
+                  </View>
                 </View>
+
+                {summary.duration_minutes > 0 && (
+                  <View style={[styles.statCard, styles.statCardSingle]}>
+                    <Text style={styles.statSingleLabel}>Game Duration</Text>
+                    <Text style={styles.statSingleValue}>{summary.duration_minutes} min</Text>
+                  </View>
+                )}
               </View>
 
-              <View style={styles.statRowSingle}>
-                <Clock size={20} color="#607D8B" />
-                <Text style={styles.statLabel}>Game Duration</Text>
-                <Text style={styles.statValue}>{summary.duration_minutes} min</Text>
-              </View>
-            </View>
+              <View style={styles.actions}>
+                {onNewGame && (
+                  <TouchableOpacity style={styles.primaryBtn} onPress={onNewGame} activeOpacity={0.85}>
+                    <LinearGradient
+                      colors={['#3b82f6', '#1d4ed8']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.primaryBtnGrad}
+                    >
+                      <RotateCcw size={20} color="#fff" strokeWidth={2.5} />
+                      <Text style={styles.primaryBtnText}>Play Again</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
 
-            <View style={styles.actions}>
-              {onNewGame && (
-                <TouchableOpacity style={styles.newGameButton} onPress={onNewGame}>
-                  <Text style={styles.newGameButtonText}>New Game</Text>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={onClose} activeOpacity={0.85}>
+                  <Home size={20} color="#fff" strokeWidth={2.5} />
+                  <Text style={styles.secondaryBtnText}>Back to Home</Text>
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <Text style={styles.closeButtonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </View>
+              </View>
+            </ScrollView>
+          </LinearGradient>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -166,206 +266,305 @@ export function GameEndModal({ visible, summary, currentPlayerId, onClose, onNew
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
   },
-  modal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+  sheet: {
     width: '100%',
-    maxWidth: 500,
-    maxHeight: '90%',
+    maxHeight: '92%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  gradient: {
+    width: '100%',
   },
   scrollContent: {
-    padding: 24,
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 36,
   },
-  header: {
+  heroSection: {
     alignItems: 'center',
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 24,
+    marginBottom: 28,
   },
-  winnerHeader: {
-    backgroundColor: '#4CAF50',
+  confettiRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
   },
-  loserHeader: {
-    backgroundColor: '#FF5722',
+  confetti: {
+    fontSize: 24,
   },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginTop: 12,
+  trophyRing: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  resultTitle: {
+    fontSize: 44,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  resignedBadge: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 10,
   },
   resignedText: {
-    fontSize: 16,
-    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+  },
+  resultSubtitle: {
     marginTop: 8,
-    opacity: 0.9,
-  },
-  finalScoresContainer: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#212121',
-    marginBottom: 16,
-    textAlign: 'center',
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
+    letterSpacing: 0.4,
   },
   scoreRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: 16,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 24,
   },
-  playerScoreBox: {
+  scoreCard: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 18,
+    padding: 14,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  scoreCardWinner: {
+    borderColor: '#fbbf24',
+    backgroundColor: 'rgba(251,191,36,0.12)',
+  },
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.25)',
   },
-  winnerBox: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#E8F5E9',
+  avatarText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#fff',
   },
-  playerLabel: {
-    fontSize: 14,
-    color: '#757575',
-    marginBottom: 8,
+  scoreCardLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 1.5,
+  },
+  scoreDisc: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2.5,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  scoreDiscWinner: {
+    borderColor: '#fbbf24',
+    backgroundColor: 'rgba(251,191,36,0.18)',
+  },
+  scoreNum: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#fff',
+    lineHeight: 30,
+  },
+  scoreNumWinner: {
+    color: '#fbbf24',
+  },
+  scoreUnit: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 1,
+  },
+  penaltyNote: {
+    fontSize: 11,
     fontWeight: '600',
+    color: '#f87171',
   },
-  finalScore: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#212121',
+  vsDivider: {
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    gap: 6,
+  },
+  vsLine: {
+    width: 1.5,
+    height: 28,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  vsBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  vsText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  statsSection: {
+    marginBottom: 28,
+    gap: 10,
+  },
+  statsSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 2,
     marginBottom: 4,
+    textAlign: 'center',
   },
-  breakdownContainer: {
-    marginBottom: 24,
-  },
-  breakdownTable: {
-    backgroundColor: '#FAFAFA',
-    borderRadius: 12,
-    overflow: 'hidden',
+  statCard: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  breakdownHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#2196F3',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  breakdownHeaderText: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  breakdownRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  alternateRow: {
-    backgroundColor: '#F5F5F5',
-  },
-  breakdownLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: '#424242',
-  },
-  breakdownValue: {
-    flex: 1,
-    fontSize: 14,
-    color: '#424242',
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  penaltyText: {
-    color: '#F44336',
-  },
-  boldText: {
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  statsContainer: {
-    marginBottom: 24,
-  },
-  statRow: {
-    flexDirection: 'row',
+  statCardSingle: {
     justifyContent: 'space-between',
-    marginBottom: 16,
-    gap: 12,
   },
-  statRowSingle: {
+  statIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 8,
   },
-  statItem: {
+  statBody: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
   },
   statLabel: {
-    fontSize: 12,
-    color: '#757575',
-    marginTop: 8,
-    marginBottom: 4,
-    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.75)',
+    marginBottom: 8,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#212121',
-    textAlign: 'center',
+  statCompare: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  statSubvalue: {
+  statSide: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1.5,
+    height: 36,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  statWord: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  statPts: {
     fontSize: 12,
-    color: '#9E9E9E',
-    marginTop: 2,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.65)',
+  },
+  statBigNum: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#fff',
+  },
+  statSingleLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.75)',
+  },
+  statSingleValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
   },
   actions: {
     gap: 12,
   },
-  newGameButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 12,
-    padding: 16,
+  primaryBtn: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  primaryBtnGrad: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 17,
+    gap: 10,
   },
-  newGameButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+  primaryBtnText: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.4,
   },
-  closeButton: {
-    backgroundColor: '#757575',
-    borderRadius: 12,
-    padding: 16,
+  secondaryBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  closeButtonText: {
-    color: '#FFFFFF',
+  secondaryBtnText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.3,
   },
 });

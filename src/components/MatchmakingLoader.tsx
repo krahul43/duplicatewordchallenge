@@ -1,6 +1,7 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { colors, typography, spacing } from '../theme/colors';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { spacing, typography } from '../theme/colors';
 
 interface Props {
   message?: string;
@@ -8,69 +9,67 @@ interface Props {
 
 export function MatchmakingLoader({ message = 'Finding opponent...' }: Props) {
   const rotateAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const dotsAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const dot1Anim = useRef(new Animated.Value(0.3)).current;
+  const dot2Anim = useRef(new Animated.Value(0.3)).current;
+  const dot3Anim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
     const rotateAnimation = Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 2000,
+        duration: 2400,
         easing: Easing.linear,
         useNativeDriver: true,
       })
     );
 
-    const scaleAnimation = Animated.loop(
+    const pulseAnimation = Animated.loop(
       Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.2,
-          duration: 1000,
+        Animated.timing(pulseAnim, {
+          toValue: 1.12,
+          duration: 900,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
-        Animated.timing(scaleAnim, {
+        Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1000,
+          duration: 900,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ])
     );
 
-    const dotsAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(dotsAnim, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-        Animated.timing(dotsAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(dotsAnim, {
-          toValue: 2,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(dotsAnim, {
-          toValue: 3,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ])
-    );
+    const makeDotAnim = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 400,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0.3,
+            duration: 400,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.delay(800),
+        ])
+      );
 
     rotateAnimation.start();
-    scaleAnimation.start();
-    dotsAnimation.start();
+    pulseAnimation.start();
+    makeDotAnim(dot1Anim, 0).start();
+    makeDotAnim(dot2Anim, 260).start();
+    makeDotAnim(dot3Anim, 520).start();
 
     return () => {
       rotateAnimation.stop();
-      scaleAnimation.stop();
-      dotsAnimation.stop();
+      pulseAnimation.stop();
     };
   }, []);
 
@@ -80,48 +79,48 @@ export function MatchmakingLoader({ message = 'Finding opponent...' }: Props) {
   });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.loaderWrapper}>
-        <Animated.View
-          style={[
-            styles.outerCircle,
-            {
-              transform: [{ rotate }, { scale: scaleAnim }],
-            },
-          ]}
-        >
-          <View style={styles.circleSegment1} />
-          <View style={styles.circleSegment2} />
-          <View style={styles.circleSegment3} />
-          <View style={styles.circleSegment4} />
+    <LinearGradient
+      colors={['#2E7D32', '#43A047', '#66BB6A']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={styles.container}
+    >
+      <View style={styles.topDecor}>
+        <Text style={styles.decorTile}>W</Text>
+        <Text style={styles.decorTile}>O</Text>
+        <Text style={styles.decorTile}>R</Text>
+        <Text style={styles.decorTile}>D</Text>
+      </View>
+
+      <Animated.View style={[styles.loaderWrapper, { transform: [{ scale: pulseAnim }] }]}>
+        <Animated.View style={[styles.outerRing, { transform: [{ rotate }] }]}>
+          <View style={styles.ringSegment1} />
+          <View style={styles.ringSegment2} />
+          <View style={styles.ringSegment3} />
+          <View style={styles.ringSegment4} />
         </Animated.View>
 
         <View style={styles.innerCircle}>
-          <Text style={styles.iconText}>🎮</Text>
+          <Text style={styles.iconText}>⚔️</Text>
         </View>
+      </Animated.View>
+
+      <View style={styles.textSection}>
+        <Text style={styles.message}>{message}</Text>
+        <Text style={styles.subMessage}>Matching you with a worthy opponent</Text>
       </View>
 
-      <Text style={styles.message}>{message}</Text>
-      <Text style={styles.subMessage}>This usually takes a few seconds</Text>
-
-      <View style={styles.dotsContainer}>
-        {[0, 1, 2].map((index) => (
-          <Animated.View
-            key={index}
-            style={[
-              styles.dot,
-              {
-                opacity: dotsAnim.interpolate({
-                  inputRange: [index, index + 1, index + 2],
-                  outputRange: [0.3, 1, 0.3],
-                  extrapolate: 'clamp',
-                }),
-              },
-            ]}
-          />
-        ))}
+      <View style={styles.dotsRow}>
+        <Animated.View style={[styles.dot, { opacity: dot1Anim, transform: [{ scale: dot1Anim }] }]} />
+        <Animated.View style={[styles.dot, styles.dotMid, { opacity: dot2Anim, transform: [{ scale: dot2Anim }] }]} />
+        <Animated.View style={[styles.dot, { opacity: dot3Anim, transform: [{ scale: dot3Anim }] }]} />
       </View>
-    </View>
+
+      <View style={styles.tipsCard}>
+        <Text style={styles.tipIcon}>💡</Text>
+        <Text style={styles.tipText}>Place tiles on bonus squares for extra points!</Text>
+      </View>
+    </LinearGradient>
   );
 }
 
@@ -130,92 +129,143 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#66BB6A',
     padding: spacing.xl,
   },
+  topDecor: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: spacing.xl * 1.5,
+  },
+  decorTile: {
+    width: 40,
+    height: 44,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    textAlign: 'center',
+    lineHeight: 44,
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#fff',
+    overflow: 'hidden',
+    borderBottomWidth: 3,
+    borderBottomColor: 'rgba(0,0,0,0.15)',
+  },
   loaderWrapper: {
-    width: 180,
-    height: 180,
+    width: 160,
+    height: 160,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.xl,
   },
-  outerCircle: {
+  outerRing: {
     position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     overflow: 'hidden',
   },
-  circleSegment1: {
+  ringSegment1: {
     position: 'absolute',
     top: 0,
     left: 0,
-    width: 90,
-    height: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 80,
+    height: 80,
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
-  circleSegment2: {
+  ringSegment2: {
     position: 'absolute',
     top: 0,
     right: 0,
-    width: 90,
-    height: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 80,
+    height: 80,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  circleSegment3: {
+  ringSegment3: {
     position: 'absolute',
     bottom: 0,
     left: 0,
-    width: 90,
-    height: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 80,
+    height: 80,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  circleSegment4: {
+  ringSegment4: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 90,
-    height: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 80,
+    height: 80,
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   innerCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.95)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
   iconText: {
-    fontSize: 60,
+    fontSize: 52,
+  },
+  textSection: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
   },
   message: {
     ...typography.h2,
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: spacing.xs,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   subMessage: {
     ...typography.body,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: spacing.xl,
+    color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
   },
-  dotsContainer: {
+  dotsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
+    marginBottom: spacing.xl * 1.5,
   },
   dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#fff',
+  },
+  dotMid: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  tipsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 16,
+    gap: spacing.sm,
+    maxWidth: 300,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  tipIcon: {
+    fontSize: 20,
+  },
+  tipText: {
+    flex: 1,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });
