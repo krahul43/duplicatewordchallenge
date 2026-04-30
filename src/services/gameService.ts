@@ -11,6 +11,7 @@ import {
   setDoc,
   Unsubscribe,
   updateDoc,
+  increment,
   where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -603,6 +604,23 @@ export const gameService = {
     };
 
     await updateDoc(gameRef, endData);
+
+    // Update profile stats atomically for both players
+    if (game.player1_id && game.player2_id) {
+      const p1Ref = doc(db, 'profiles', game.player1_id);
+      const p2Ref = doc(db, 'profiles', game.player2_id);
+      const p1Stats: Record<string, any> = {
+        games_played: increment(1),
+        total_score: increment(game.player1_score || 0),
+      };
+      const p2Stats: Record<string, any> = {
+        games_played: increment(1),
+        total_score: increment(game.player2_score || 0),
+      };
+      if (winnerId === game.player1_id) p1Stats.games_won = increment(1);
+      else if (winnerId === game.player2_id) p2Stats.games_won = increment(1);
+      await Promise.all([updateDoc(p1Ref, p1Stats), updateDoc(p2Ref, p2Stats)]);
+    }
   },
 
   async handleTimeExpired(gameId: string): Promise<void> {
@@ -705,6 +723,21 @@ export const gameService = {
       game_ended_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+
+    // Update profile stats on resign
+    const resignP1Ref = doc(db, 'profiles', game.player1_id);
+    const resignP2Ref = doc(db, 'profiles', game.player2_id);
+    const resignP1Stats: Record<string, any> = {
+      games_played: increment(1),
+      total_score: increment(game.player1_score || 0),
+    };
+    const resignP2Stats: Record<string, any> = {
+      games_played: increment(1),
+      total_score: increment(game.player2_score || 0),
+    };
+    if (game.player1_id === playerId) resignP2Stats.games_won = increment(1);
+    else resignP1Stats.games_won = increment(1);
+    await Promise.all([updateDoc(resignP1Ref, resignP1Stats), updateDoc(resignP2Ref, resignP2Stats)]);
   },
 
   async getGameSummary(gameId: string): Promise<GameSummary | null> {
