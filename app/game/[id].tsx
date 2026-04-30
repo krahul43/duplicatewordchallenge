@@ -356,53 +356,28 @@ export default function GameScreen() {
   }
 
   function getCellFromCoordinates(x: number, y: number): { row: number; col: number } | null {
-    if (!boardLayout) {
-      console.log('❌ No boardLayout available');
-      return null;
-    }
+    if (!boardLayout) return null;
 
+    // Coordinates relative to the board container (top-left corner)
     const relativeX = x - boardLayout.x;
     const relativeY = y - boardLayout.y;
 
-    console.log('🎯 Touch Position Debug:', {
-      touchX: x.toFixed(2),
-      touchY: y.toFixed(2),
-      boardX: boardLayout.x.toFixed(2),
-      boardY: boardLayout.y.toFixed(2),
-      relativeX: relativeX.toFixed(2),
-      relativeY: relativeY.toFixed(2),
-    });
-
-    const PADDING = 4;
-    const MARGIN = 1;
-    const GAP = 2;
-
-    const adjustedX = relativeX - PADDING - MARGIN;
-    const adjustedY = relativeY - PADDING - MARGIN;
-
-    const SCREEN_WIDTH = Dimensions.get('window').width;
-    const SCREEN_HEIGHT = Dimensions.get('window').height;
-    const AVAILABLE_HEIGHT = Platform.OS === 'web' ? SCREEN_HEIGHT - 450 : SCREEN_HEIGHT - 500;
-    const AVAILABLE_WIDTH = SCREEN_WIDTH - 24;
-    const MAX_SIZE = Math.min(AVAILABLE_WIDTH, AVAILABLE_HEIGHT);
-    const CELL_SIZE = Math.floor(MAX_SIZE / 15);
-
-    const columnWidth = CELL_SIZE + GAP + MARGIN * 2;
-    const rowHeight = CELL_SIZE + MARGIN * 2;
-
-    let col = Math.floor(adjustedX / columnWidth);
-    let row = Math.floor(adjustedY / rowHeight);
-
-    if (row < 0 || row > 14 || col < 0 || col > 14) {
-      console.log('❌ Outside board bounds');
+    // Reject drops outside the board
+    if (relativeX < 0 || relativeY < 0 || relativeX > boardLayout.width || relativeY > boardLayout.height) {
       return null;
     }
 
-    console.log('✅ Cell Under Touch Point:', {
-      cellSize: CELL_SIZE,
-      row,
-      col,
-    });
+    // The board container has 4px padding on each side.
+    // Use the inner area to compute exact cell from actual rendered dimensions.
+    const BOARD_PADDING = 4;
+    const innerWidth = boardLayout.width - BOARD_PADDING * 2;
+    const innerHeight = boardLayout.height - BOARD_PADDING * 2;
+    const adjustedX = relativeX - BOARD_PADDING;
+    const adjustedY = relativeY - BOARD_PADDING;
+
+    // Divide the inner area evenly into 15 columns and 15 rows
+    const col = Math.min(14, Math.max(0, Math.floor((adjustedX / innerWidth) * 15)));
+    const row = Math.min(14, Math.max(0, Math.floor((adjustedY / innerHeight) * 15)));
 
     return { row, col };
   }
